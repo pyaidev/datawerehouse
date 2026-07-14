@@ -258,7 +258,7 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   },
 };
 
-const PLAYBACK_STEP_MS = 1800;
+const PLAYBACK_STEP_MS = 10000;
 
 export function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);

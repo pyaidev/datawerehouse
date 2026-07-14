@@ -311,7 +311,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(35, 87, 183, 0.14), 0 16px 32px rgba(24, 33, 46, 0.14);
   transform: translateY(-2px);
-  animation: stagePulse 1.8s ease-in-out infinite;
+  animation: stagePulse 10s ease-in-out infinite;
 }
 .stageCard.playing .stageIcon { background: var(--green); }
 .stageCard.playing::after {
@@ -323,7 +323,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   width: 100%;
   background: linear-gradient(90deg, var(--blue), var(--green));
   transform-origin: left center;
-  animation: stageProgress 1.8s linear infinite;
+  animation: stageProgress 10s linear infinite;
 }
 .modalBackdrop.playbackOpen { animation: backdropFade 360ms ease both; }
 .modal { animation: modalRise 460ms ease both; }

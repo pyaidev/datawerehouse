@@ -732,7 +732,7 @@ Pipeline run tugagandan keyin frontend real backend response ichidagi stage nati
 2. Next.js `POST /api/backend/pipeline/run` orqali FastAPI ga request yuboradi.
 3. Backend barcha stage natijalarini qaytaradi.
 4. Frontend `startStagePlayback()` bilan stage'larni ketma-ket ko'rsatadi.
-5. Har stage uchun 1.8 sekund vaqt beriladi.
+5. Har stage uchun 10 sekund vaqt beriladi.
 6. Current stage card `playing` class oladi.
 7. Oldin o'tgan stage card `visited` class oladi.
 8. `activeStage` avtomatik o'zgaradi va modal o'zi ochiladi.
@@ -741,7 +741,7 @@ Pipeline run tugagandan keyin frontend real backend response ichidagi stage nati
 ### Kodlar
 
 - `frontend/components/Dashboard.tsx`
-  - `PLAYBACK_STEP_MS = 1800`
+  - `PLAYBACK_STEP_MS = 10000`
   - `playbackStageId`
   - `playbackRunning`
   - `visitedStageIds`
