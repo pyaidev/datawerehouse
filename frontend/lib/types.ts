@@ -17,7 +17,12 @@ export type StageResult = {
   id: string;
   name: string;
   status: "done" | "warning" | "error";
+  sequence: number;
+  started_at: string;
+  ended_at: string;
   duration_ms: number;
+  data_size_bytes: number;
+  data_format: string;
   message: string;
   warnings: string[];
   input_ref?: string | null;
@@ -28,10 +33,23 @@ export type StageResult = {
   artifacts?: Record<string, unknown>;
 };
 
+export type LineageRecord = {
+  record_id: string;
+  source: Record<string, unknown>;
+  raw: Record<string, unknown>;
+  curated: Record<string, unknown> | null;
+  warehouse: Record<string, unknown> | null;
+};
+
 export type PipelineResult = {
   run_id: string;
   source: string;
   mode: string;
+  status: "done" | "warning" | "error";
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  failed_stage: string | null;
   records: number;
   quality_score: number;
   curated_fields: number;
@@ -40,6 +58,7 @@ export type PipelineResult = {
   warnings: string[];
   raw_preview: Record<string, unknown>[];
   curated_preview: Record<string, unknown>[];
+  lineage: LineageRecord[];
 };
 
 export type HealthResponse = {

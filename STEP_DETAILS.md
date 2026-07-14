@@ -22,6 +22,10 @@ POST http://localhost:8000/pipeline/run
 
 Default mode frontendda `api` qilib qo'yilgan.
 
+Har real stage response ichida sequence, started_at, ended_at, duration_ms, data_size_bytes va data_format qaytadi. Frontend shu qiymatlardan execution timeline va connector data packetini quradi.
+
+Run natijasi qo'shimcha ravishda status, failed_stage, umumiy duration_ms va record-level lineage qaytaradi. Nazoratli xatolik testi uchun requestga failure_stage: kafka, gx yoki clickhouse beriladi; none normal run hisoblanadi.
+
 ---
 
 ## 1. FastAPI API Gateway Extract

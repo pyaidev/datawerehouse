@@ -26,10 +26,13 @@ class PipelineRunner:
         self.warehouse_store = WarehouseStore(settings)
 
     async def run(self, request: PipelineRunRequest) -> PipelineRunResult:
+        run_started_at = datetime.now(UTC)
+        run_started_perf = time.perf_counter()
         run_id = str(uuid4())
         source = get_source(request.source)
         stages: list[StageResult] = []
         warnings: list[str] = []
+        failed_stage: str | None = None
         raw_rows: list[dict[str, Any]] = []
         curated_rows: list[dict[str, Any]] = []
         quality_checks = []
@@ -44,21 +47,68 @@ class PipelineRunner:
             input_preview: Any = None,
             detail_builder: Callable[[Any], dict[str, Any]] | None = None,
         ) -> Any:
+            nonlocal failed_stage
+            if failed_stage:
+                return None
+
             started = time.perf_counter()
-            try:
-                result = await fn()
-                details = detail_builder(result) if detail_builder else {}
-                message = details.get("message") or (str(result) if result is not None else "done")
+            started_at = datetime.now(UTC)
+
+            if request.failure_stage == stage_id:
+                ended_at = datetime.now(UTC)
+                failed_stage = stage_id
+                message = f"TEST FAILURE: {name} bosqichida nazoratli xatolik"
+                warnings.append(message)
                 stages.append(
                     StageResult(
                         id=stage_id,
                         name=name,
-                        status="done",
+                        status="error",
+                        sequence=len(stages) + 1,
+                        started_at=started_at.isoformat(),
+                        ended_at=ended_at.isoformat(),
                         duration_ms=round((time.perf_counter() - started) * 1000),
+                        data_size_bytes=json_size(input_preview),
+                        data_format="JSON",
                         message=message,
+                        warnings=[message],
                         input_ref=input_ref,
                         input_preview=input_preview,
-                        output_ref=details.get("output_ref"),
+                        output_preview={"test_failure": True, "failed_stage": stage_id, "retryable": True},
+                        artifacts={"failure_mode": "controlled test", "retry": "Run request with failure_stage=none"},
+                    )
+                )
+                return None
+
+            try:
+                result = await fn()
+                details = detail_builder(result) if detail_builder else {}
+                ended_at = datetime.now(UTC)
+                message = details.get("message") or (str(result) if result is not None else "done")
+                output_ref = details.get("output_ref")
+                fallback_used = isinstance(output_ref, str) and output_ref.startswith(("local://", "kafka-fallback://"))
+                stage_status = "warning" if fallback_used else "done"
+                stage_warnings: list[str] = []
+                if fallback_used:
+                    fallback_warning = f"{name}: external service fallback ishlatildi: {output_ref}"
+                    warnings.append(fallback_warning)
+                    stage_warnings.append(fallback_warning)
+                stages.append(
+                    StageResult(
+                        id=stage_id,
+                        name=name,
+                        status=stage_status,
+                        sequence=len(stages) + 1,
+                        started_at=started_at.isoformat(),
+                        ended_at=ended_at.isoformat(),
+                        duration_ms=round((time.perf_counter() - started) * 1000),
+                        data_size_bytes=details.get("data_size_bytes", json_size(details.get("output_preview", result))),
+                        data_format=details.get("data_format", "JSON"),
+                        message=message,
+                        warnings=stage_warnings,
+                        input_ref=input_ref,
+                        input_preview=input_preview,
+                        output_ref=output_ref,
                         output_preview=details.get("output_preview"),
                         metrics=details.get("metrics", {}),
                         artifacts=details.get("artifacts", {}),
@@ -66,13 +116,19 @@ class PipelineRunner:
                 )
                 return result
             except Exception as exc:
+                ended_at = datetime.now(UTC)
                 if self.settings.strict_external_services:
                     stages.append(
                         StageResult(
                             id=stage_id,
                             name=name,
                             status="error",
+                            sequence=len(stages) + 1,
+                            started_at=started_at.isoformat(),
+                            ended_at=ended_at.isoformat(),
                             duration_ms=round((time.perf_counter() - started) * 1000),
+                            data_size_bytes=json_size(input_preview),
+                            data_format="JSON",
                             message=str(exc),
                             input_ref=input_ref,
                             input_preview=input_preview,
@@ -86,7 +142,12 @@ class PipelineRunner:
                         id=stage_id,
                         name=name,
                         status="warning",
+                        sequence=len(stages) + 1,
+                        started_at=started_at.isoformat(),
+                        ended_at=ended_at.isoformat(),
                         duration_ms=round((time.perf_counter() - started) * 1000),
+                        data_size_bytes=json_size(input_preview),
+                        data_format="JSON",
                         message="fallback used",
                         warnings=[warning],
                         input_ref=input_ref,
@@ -124,6 +185,8 @@ class PipelineRunner:
                     "records_received": payload_count(result, source["collection"]),
                     "top_level_keys": list(result.keys()) if isinstance(result, dict) else [],
                 },
+                "data_size_bytes": json_size(result),
+                "data_format": "JSON",
                 "artifacts": {"source_entity": source["entity"], "collection_key": source["collection"]},
             },
         )
@@ -151,6 +214,8 @@ class PipelineRunner:
                 "output_ref": result,
                 "output_preview": {"topic": self.settings.kafka_topic_ingestion, "event": kafka_event},
                 "metrics": {"events_published": 1, "records_in_event": len(raw_rows)},
+                "data_size_bytes": json_size(kafka_event),
+                "data_format": "Kafka JSON event",
                 "artifacts": {"bootstrap_servers": self.settings.kafka_bootstrap_servers, "topic": self.settings.kafka_topic_ingestion},
             },
         )
@@ -171,6 +236,8 @@ class PipelineRunner:
                 "output_ref": result,
                 "output_preview": {"bucket": self.settings.minio_landing_bucket, "key": landing_key, "format": "json"},
                 "metrics": {"records_written": len(raw_rows), "object_count": 1},
+                "data_size_bytes": json_size(payload),
+                "data_format": "JSON object",
                 "artifacts": {"zone": "landing", "content": "original external payload"},
             },
         )
@@ -191,6 +258,8 @@ class PipelineRunner:
                 "output_ref": result,
                 "output_preview": sample_rows(raw_rows),
                 "metrics": {"records_written": len(raw_rows), "sample_rows": min(len(raw_rows), 3)},
+                "data_size_bytes": json_size(raw_rows),
+                "data_format": "Raw JSON rows",
                 "artifacts": {"zone": "raw", "bucket": self.settings.minio_raw_bucket, "key": raw_key},
             },
         )
@@ -215,6 +284,8 @@ class PipelineRunner:
                     "checks_total": len(quality_checks),
                     "checks_passed": sum(1 for check in quality_checks if check.passed),
                 },
+                "data_size_bytes": json_size([check.model_dump() for check in quality_checks]),
+                "data_format": "Validation JSON",
                 "artifacts": {"validation_engine": "backend/app/quality.py", "strict_gate": quality_score >= 90},
             },
         )
@@ -245,6 +316,8 @@ class PipelineRunner:
                     "output_rows": len(curated_rows),
                     "curated_fields": len(curated_rows[0].keys()) if curated_rows else 0,
                 },
+                "data_size_bytes": json_size(curated_rows),
+                "data_format": "Curated rows",
                 "artifacts": {
                     "python_transform": "backend/app/transform.py",
                     "pyspark_job": "spark/jobs/dummyjson_curate.py",
@@ -269,6 +342,8 @@ class PipelineRunner:
                 "output_ref": result,
                 "output_preview": sample_rows(curated_rows),
                 "metrics": {"records_written": len(curated_rows), "object_count": 1},
+                "data_size_bytes": json_size(curated_rows),
+                "data_format": "Curated JSON",
                 "artifacts": {"zone": "curated", "bucket": self.settings.minio_raw_bucket, "key": curated_key},
             },
         )
@@ -292,6 +367,8 @@ class PipelineRunner:
                     "sample_metric_sum": round(sum(float(row.get("metric_value") or 0) for row in curated_rows), 2),
                 },
                 "metrics": {"inserted_rows": len(curated_rows), "target_table": "curated_events"},
+                "data_size_bytes": json_size(curated_rows),
+                "data_format": "ClickHouse rows",
                 "artifacts": {"ddl_owner": "backend/app/databases.py", "engine": "MergeTree"},
             },
         )
@@ -320,14 +397,23 @@ class PipelineRunner:
                 "output_ref": result,
                 "output_preview": {**audit, "warnings": warnings},
                 "metrics": {"audit_rows_upserted": 1, "records": len(raw_rows), "quality_score": quality_score},
+                "data_size_bytes": json_size(audit),
+                "data_format": "PostgreSQL row",
                 "artifacts": {"table": "pipeline_runs", "primary_key": "run_id"},
             },
         )
 
+        finished_at = datetime.now(UTC)
+        run_status = "error" if failed_stage else "warning" if warnings else "done"
         return PipelineRunResult(
             run_id=run_id,
             source=request.source,
             mode=request.mode,
+            status=run_status,
+            started_at=run_started_at.isoformat(),
+            finished_at=finished_at.isoformat(),
+            duration_ms=round((time.perf_counter() - run_started_perf) * 1000),
+            failed_stage=failed_stage,
             records=len(raw_rows),
             quality_score=quality_score,
             curated_fields=len(curated_rows[0].keys()) if curated_rows else 0,
@@ -336,6 +422,7 @@ class PipelineRunner:
             warnings=warnings,
             raw_preview=raw_rows[:10],
             curated_preview=curated_rows[:10],
+            lineage=build_lineage(raw_rows, curated_rows, request.source, run_id),
         )
 
 
@@ -364,3 +451,36 @@ def summarize_payload(payload: Any, collection_key: str) -> dict[str, Any]:
 
 def sample_rows(rows: list[dict[str, Any]], limit: int = 3) -> list[dict[str, Any]]:
     return rows[:limit]
+
+
+def json_size(value: Any) -> int:
+    if value is None:
+        return 0
+    return len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8"))
+
+
+def build_lineage(
+    raw_rows: list[dict[str, Any]],
+    curated_rows: list[dict[str, Any]],
+    source: str,
+    run_id: str,
+) -> list[dict[str, Any]]:
+    lineage: list[dict[str, Any]] = []
+    for index, raw in enumerate(raw_rows[:10]):
+        curated = curated_rows[index] if index < len(curated_rows) else None
+        source_id = raw.get("id", index)
+        lineage.append(
+            {
+                "record_id": str(source_id),
+                "source": {"system": "DummyJSON", "entity": source, "id": source_id},
+                "raw": raw,
+                "curated": curated,
+                "warehouse": {
+                    "database": "dwh",
+                    "table": "curated_events",
+                    "key": curated.get("dw_id") if curated else None,
+                    "run_id": run_id,
+                } if curated else None,
+            }
+        )
+    return lineage

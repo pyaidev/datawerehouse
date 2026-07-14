@@ -98,6 +98,21 @@ Frontend stage modalida shu ma'lumotlar ko'rinadi:
 - Artifacts / Code
 - Raw stage JSON
 
+## Execution Tushuntirish UI
+
+Runner jarayonni faqat diagramma sifatida emas, real API response asosida ko'rsatadi:
+
+- connector ustida record soni, payload hajmi va format ko'rsatiladigan data packet;
+- har bir stage uchun Input -> Process -> Output va field-level diff;
+- backend qaytargan timestamp va duration asosidagi execution timeline;
+- REAL EXECUTED, AVAILABLE, NOT CONNECTED statuslari;
+- repositorydagi haqiqiy FastAPI, Kafka, MinIO, quality, transform, ClickHouse, PostgreSQL, NiFi, Airflow va dbt kod previewlari;
+- Kafka, Great Expectations yoki ClickHouse bosqichida boshqariladigan TEST FAILURE va normal retry;
+- bitta record uchun Source -> Raw -> Curated -> ClickHouse lineage;
+- run status, total duration, quality, warning va storage/database manzillari bilan final report.
+
+Test failure requestiga failure_stage maydoni beriladi. Qiymatlar: none, kafka, gx, clickhouse. Bu production xatosi emas, UI va retry oqimini ko'rsatish uchun nazoratli test rejimi.
+
 ## Muhim Kodlar
 
 - FastAPI app: `backend/app/main.py`

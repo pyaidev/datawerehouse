@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { HealthResponse, PipelineResult, QualityCheck, SourcesResponse, StageResult } from "../lib/types";
+import type { HealthResponse, LineageRecord, PipelineResult, QualityCheck, SourcesResponse, StageResult } from "../lib/types";
+import { stageCodeSamples } from "../lib/stage-code";
+
+import type { CSSProperties } from "react";
 
 type Mode = "batch" | "stream" | "api";
 type View = "raw" | "curated";
+type FailureStage = "none" | "kafka" | "gx" | "clickhouse";
 
 type StageMeta = {
   id: string;
@@ -12,6 +16,19 @@ type StageMeta = {
   layer: string;
   detail: string;
   icon: IconName;
+  color: string;
+};
+
+type ScenarioNode = {
+  id: string;
+  x: number;
+  y: number;
+};
+
+type ScenarioEdge = {
+  from: string;
+  to: string;
+  kind?: "main" | "branch" | "control";
 };
 
 type StaticStageDetail = {
@@ -51,26 +68,69 @@ type IconName =
   | "check"
   | "clock"
   | "alert"
-  | "server";
+  | "server"
+  | "close";
 
 const stageCatalog: StageMeta[] = [
-  { id: "fastapi", label: "FastAPI", layer: "Gateway", detail: "API orqali source data extract qiladi", icon: "api" },
-  { id: "nifi", label: "NiFi", layer: "Flow", detail: "Routing va flow orchestration", icon: "route" },
-  { id: "kafka", label: "Kafka", layer: "Stream", detail: "Ingestion event topicga yoziladi", icon: "stream" },
-  { id: "landing", label: "MinIO Landing", layer: "Object", detail: "Original payload landing bucketga yoziladi", icon: "bucket" },
-  { id: "raw", label: "MinIO Raw", layer: "Lake", detail: "Normalized raw rows saqlanadi", icon: "database" },
-  { id: "gx", label: "Great Expectations", layer: "Quality", detail: "Record, schema va null check", icon: "shield" },
-  { id: "spark", label: "PySpark", layer: "Compute", detail: "Curated transform job", icon: "spark" },
-  { id: "curated", label: "Curated Zone", layer: "Model", detail: "Business schema saqlanadi", icon: "layers" },
-  { id: "clickhouse", label: "ClickHouse", layer: "DWH", detail: "Analytic warehouse load", icon: "warehouse" },
-  { id: "postgres", label: "PostgreSQL", layer: "ODS", detail: "Run audit va metadata", icon: "database" },
-  { id: "airflow", label: "Airflow", layer: "Schedule", detail: "DAG orqali trigger qilish uchun", icon: "workflow" },
-  { id: "dbt", label: "dbt", layer: "SQL", detail: "Staging va mart model", icon: "code" },
-  { id: "superset", label: "Superset", layer: "BI", detail: "Dashboard dataset", icon: "chart" },
-  { id: "trino", label: "Trino", layer: "Query", detail: "Ad-hoc SQL gateway", icon: "search" },
-  { id: "api", label: "API Services", layer: "Serve", detail: "External API output", icon: "api" },
-  { id: "portal", label: "Portal", layer: "UI", detail: "Visualization frontend", icon: "globe" },
-  { id: "export", label: "Export", layer: "File", detail: "JSON/CSV/PDF export", icon: "download" },
+  { id: "fastapi", label: "FastAPI", layer: "Gateway", detail: "API orqali source data extract qiladi", icon: "api", color: "#159570" },
+  { id: "nifi", label: "Apache NiFi", layer: "Flow", detail: "Routing va flow orchestration", icon: "route", color: "#64748b" },
+  { id: "kafka", label: "Apache Kafka", layer: "Stream", detail: "Ingestion event topicga yoziladi", icon: "stream", color: "#252b36" },
+  { id: "landing", label: "MinIO Landing", layer: "Object", detail: "Original payload landing bucketga yoziladi", icon: "bucket", color: "#2e8b57" },
+  { id: "raw", label: "MinIO Raw", layer: "Lake", detail: "Normalized raw rows saqlanadi", icon: "database", color: "#0f766e" },
+  { id: "gx", label: "Great Expectations", layer: "Quality", detail: "Record, schema va null check", icon: "shield", color: "#16a34a" },
+  { id: "spark", label: "PySpark", layer: "Compute", detail: "Curated transform job", icon: "spark", color: "#f97316" },
+  { id: "curated", label: "Curated Zone", layer: "Model", detail: "Business schema saqlanadi", icon: "layers", color: "#7c3aed" },
+  { id: "clickhouse", label: "ClickHouse", layer: "DWH", detail: "Analytic warehouse load", icon: "warehouse", color: "#d99b00" },
+  { id: "postgres", label: "PostgreSQL", layer: "ODS", detail: "Run audit va metadata", icon: "database", color: "#336791" },
+  { id: "airflow", label: "Apache Airflow", layer: "Schedule", detail: "DAG orqali trigger qilish uchun", icon: "workflow", color: "#16a3b6" },
+  { id: "dbt", label: "dbt", layer: "SQL", detail: "Staging va mart model", icon: "code", color: "#e85d43" },
+  { id: "superset", label: "Superset", layer: "BI", detail: "Dashboard dataset", icon: "chart", color: "#168f96" },
+  { id: "trino", label: "Trino", layer: "Query", detail: "Ad-hoc SQL gateway", icon: "search", color: "#d94f8a" },
+  { id: "api", label: "API Services", layer: "Serve", detail: "External API output", icon: "api", color: "#0f9f6e" },
+  { id: "portal", label: "Portal", layer: "UI", detail: "Visualization frontend", icon: "globe", color: "#2563eb" },
+  { id: "export", label: "Export", layer: "File", detail: "JSON/CSV/PDF export", icon: "download", color: "#6366f1" },
+];
+
+const SCENARIO_WIDTH = 1060;
+const SCENARIO_HEIGHT = 680;
+
+const scenarioNodes: ScenarioNode[] = [
+  { id: "fastapi", x: 70, y: 230 },
+  { id: "nifi", x: 200, y: 230 },
+  { id: "kafka", x: 330, y: 230 },
+  { id: "landing", x: 460, y: 230 },
+  { id: "raw", x: 590, y: 230 },
+  { id: "gx", x: 720, y: 230 },
+  { id: "spark", x: 850, y: 230 },
+  { id: "curated", x: 980, y: 230 },
+  { id: "dbt", x: 980, y: 430 },
+  { id: "clickhouse", x: 850, y: 430 },
+  { id: "superset", x: 700, y: 355 },
+  { id: "trino", x: 700, y: 505 },
+  { id: "api", x: 530, y: 430 },
+  { id: "portal", x: 360, y: 350 },
+  { id: "export", x: 360, y: 510 },
+  { id: "postgres", x: 980, y: 570 },
+  { id: "airflow", x: 720, y: 65 },
+];
+
+const scenarioEdges: ScenarioEdge[] = [
+  { from: "fastapi", to: "nifi" },
+  { from: "nifi", to: "kafka" },
+  { from: "kafka", to: "landing" },
+  { from: "landing", to: "raw" },
+  { from: "raw", to: "gx" },
+  { from: "gx", to: "spark" },
+  { from: "spark", to: "curated" },
+  { from: "curated", to: "dbt" },
+  { from: "dbt", to: "clickhouse" },
+  { from: "clickhouse", to: "superset", kind: "branch" },
+  { from: "clickhouse", to: "trino", kind: "branch" },
+  { from: "clickhouse", to: "api", kind: "branch" },
+  { from: "api", to: "portal", kind: "branch" },
+  { from: "api", to: "export", kind: "branch" },
+  { from: "curated", to: "postgres", kind: "branch" },
+  { from: "airflow", to: "spark", kind: "control" },
 ];
 
 const processMap: Record<string, string[]> = {
@@ -266,6 +326,7 @@ export function Dashboard() {
   const [source, setSource] = useState("products");
   const [mode, setMode] = useState<Mode>("api");
   const [limit, setLimit] = useState(20);
+  const [failureStage, setFailureStage] = useState<FailureStage>("none");
   const [view, setView] = useState<View>("curated");
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -312,7 +373,8 @@ export function Dashboard() {
     }
   }
 
-  async function runPipeline() {
+  async function runPipeline(failureOverride?: FailureStage) {
+    const requestedFailure = failureOverride ?? failureStage;
     setRunning(true);
     setError(null);
     clearPlaybackTimers();
@@ -322,13 +384,13 @@ export function Dashboard() {
     setActiveStage(null);
     setResult(null);
     setLogs([]);
-    addLog(`POST /api/backend/pipeline/run source=${source} limit=${limit} mode=${mode}`);
+    addLog(`POST /api/backend/pipeline/run source=${source} limit=${limit} mode=${mode} failure_stage=${requestedFailure}`);
 
     try {
       const nextResult = await fetchJson<PipelineResult>("/api/backend/pipeline/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ source, limit, mode }),
+        body: JSON.stringify({ source, limit, mode, failure_stage: requestedFailure }),
       });
       setResult(nextResult);
       addLog(`run_id=${nextResult.run_id}`);
@@ -347,6 +409,11 @@ export function Dashboard() {
     }
   }
 
+  function retryPipeline() {
+    setFailureStage("none");
+    void runPipeline("none");
+  }
+
   function clearPlaybackTimers() {
     playbackTimers.current.forEach((timer) => clearTimeout(timer));
     playbackTimers.current = [];
@@ -354,8 +421,9 @@ export function Dashboard() {
 
   function startStagePlayback(nextResult: PipelineResult) {
     clearPlaybackTimers();
-    const resultStageIds = new Set(nextResult.stages.map((stage) => stage.id));
-    const playableStages = stageCatalog.filter((stage) => resultStageIds.has(stage.id));
+    const playableStages = nextResult.stages
+      .map((resultStage) => stageCatalog.find((stage) => stage.id === resultStage.id))
+      .filter((stage): stage is StageMeta => Boolean(stage));
 
     setPlaybackStageId(null);
     setVisitedStageIds([]);
@@ -389,120 +457,154 @@ export function Dashboard() {
     <main className="shell">
       <header className="topbar">
         <div className="brand">
-          <div className="brandIcon"><Icon name="warehouse" /></div>
+          <div className="brandIcon"><Icon name="workflow" /></div>
           <div>
-            <p>Next.js Frontend</p>
-            <h1>Data Warehouse API Console</h1>
+            <p>Statistika qo'mitasi</p>
+            <h1>Data Warehouse Pipeline Runner</h1>
           </div>
         </div>
         <div className="statusLine">
           <StatusPill label="FastAPI" value={health?.status || "checking"} ok={health?.status === "ok"} />
-          <StatusPill label="API" value="localhost:8000" ok />
           <StatusPill label="Next" value={frontendHost} ok />
         </div>
       </header>
 
-      <section className="controlPanel">
-        <label>
-          <span>Source</span>
-          <select value={source} onChange={(event) => setSource(event.target.value)} disabled={running}>
-            {Object.entries(sources).map(([key, item]) => (
-              <option key={key} value={key}>{item.title} / {item.collection}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Limit</span>
-          <input type="number" min={1} max={100} value={limit} onChange={(event) => setLimit(Number(event.target.value))} disabled={running} />
-        </label>
-        <div className="segmented">
-          {(["batch", "stream", "api"] as Mode[]).map((item) => (
-            <button key={item} className={mode === item ? "active" : ""} onClick={() => setMode(item)} disabled={running}>
-              <Icon name={item === "batch" ? "clock" : item === "stream" ? "stream" : "api"} />
-              <span>{item}</span>
-            </button>
-          ))}
+      <section className="runnerBar">
+        <div className="runnerIdentity">
+          <span className="runnerIcon"><Icon name="warehouse" /></span>
+          <div>
+            <p>Production flow</p>
+            <h2>External API to Analytics</h2>
+          </div>
         </div>
-        <button className="runButton" onClick={runPipeline} disabled={running || !Object.keys(sources).length}>
-          <Icon name={running ? "refresh" : "play"} />
-          <span>{running ? "Running" : "Run Pipeline"}</span>
-        </button>
+        <div className="runnerControls">
+          <label className="sourceControl">
+            <span>Source</span>
+            <select value={source} onChange={(event) => setSource(event.target.value)} disabled={running}>
+              {Object.entries(sources).map(([key, item]) => (
+                <option key={key} value={key}>{item.title} / {item.collection}</option>
+              ))}
+            </select>
+          </label>
+          <label className="limitControl">
+            <span>Limit</span>
+            <input type="number" min={1} max={100} value={limit} onChange={(event) => setLimit(Number(event.target.value))} disabled={running} />
+          </label>
+          <label className={`failureControl ${failureStage !== "none" ? "armed" : ""}`}>
+            <span>Test failure</span>
+            <select value={failureStage} onChange={(event) => setFailureStage(event.target.value as FailureStage)} disabled={running}>
+              <option value="none">Normal run</option>
+              <option value="kafka">Kafka error (TEST)</option>
+              <option value="gx">Validation error (TEST)</option>
+              <option value="clickhouse">ClickHouse error (TEST)</option>
+            </select>
+          </label>
+          <div className="segmented" aria-label="Pipeline mode">
+            {(["batch", "stream", "api"] as Mode[]).map((item) => (
+              <button key={item} className={mode === item ? "active" : ""} onClick={() => setMode(item)} disabled={running}>
+                <Icon name={item === "batch" ? "clock" : item === "stream" ? "stream" : "api"} />
+                <span>{item}</span>
+              </button>
+            ))}
+          </div>
+          <button className="runButton" onClick={() => void runPipeline()} disabled={running || !Object.keys(sources).length}>
+            <Icon name={running ? "refresh" : "play"} />
+            <span>{running ? "API ishlayapti" : "Run scenario"}</span>
+          </button>
+        </div>
       </section>
 
       {error && <div className="errorBox"><Icon name="alert" /> {error}</div>}
 
-      <section className="metrics">
-        <Metric label="Run ID" value={result?.run_id ? result.run_id.slice(0, 8) : "-"} />
-        <Metric label="Records" value={String(result?.records ?? 0)} />
-        <Metric label="Quality" value={`${result?.quality_score ?? 0}%`} />
-        <Metric label="Fields" value={String(result?.curated_fields ?? 0)} />
-      </section>
-
-      <section className="mainGrid">
-        <article className="panel pipelinePanel">
+      <section className="workspaceGrid">
+        <article className="panel scenarioPanel">
           <div className="panelHead">
             <div>
-              <p>Pipeline</p>
-              <h2>Real API flow</h2>
+              <p>Execution view</p>
+              <h2>Data oqimining real o'tishi</h2>
             </div>
             <div className="panelActions">
               {result && <span className={`playbackBadge ${playbackRunning ? "running" : ""}`}>{Math.max(playbackPosition, 0)}/{playbackTotal}</span>}
-              <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running || playbackRunning}><Icon name="play" /> Replay</button>
-              <button className="smallButton" onClick={loadInitial} disabled={running}><Icon name="refresh" /> Refresh</button>
+              <span className="stepDuration"><Icon name="clock" /> 10 soniya / step</span>
+              <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running || playbackRunning}><Icon name="play" /> Qayta ko'rish</button>
+              <button className="iconButton" onClick={loadInitial} disabled={running} aria-label="Backend statusini yangilash" title="Backend statusini yangilash"><Icon name="refresh" /></button>
             </div>
           </div>
-          <div className="stageGrid">
-            {stageCatalog.map((stage) => {
-              const stageResult = stageResults.get(stage.id);
-              const isVisited = visitedStageIds.includes(stage.id);
-              const isPlaying = playbackStageId === stage.id;
-              const status = stageResult
-                ? ((playbackRunning || visitedStageIds.length > 0) && !isVisited ? "idle" : stageResult.status)
-                : "idle";
-              return (
-                <button key={stage.id} className={`stageCard ${status} ${isPlaying ? "playing" : ""} ${isVisited && !isPlaying ? "visited" : ""}`} onClick={() => setActiveStage(stage)}>
-                  <span className="stageIcon"><Icon name={stage.icon} /></span>
-                  <span>
-                    <strong>{stage.label}</strong>
-                    <small>{stage.layer}</small>
-                  </span>
-                  <em>{status}</em>
-                </button>
-              );
-            })}
-          </div>
+          <ScenarioCanvas
+            stageResults={stageResults}
+            visitedStageIds={visitedStageIds}
+            playbackStageId={playbackStageId}
+            playbackRunning={playbackRunning}
+            apiRunning={running}
+            totalRecords={result?.records ?? 0}
+            runStatus={result?.status}
+            onSelect={setActiveStage}
+          />
         </article>
 
-        <aside className="panel sidePanel">
-          <div className="panelHead compact">
-            <div>
-              <p>Quality</p>
-              <h2>Checks</h2>
-            </div>
-          </div>
-          <div className="qualityList">
-            {(qualityChecks.length ? qualityChecks : [{ name: "waiting", passed: false, value: "idle" } as QualityCheck]).map((check) => (
-              <div key={check.name} className={`qualityItem ${check.passed ? "ok" : "warn"}`}>
-                <Icon name={check.passed ? "check" : "clock"} />
-                <span>{check.name}</span>
-                <strong>{check.value}</strong>
+        <aside className="runSidebar">
+          <section className="panel summaryPanel">
+            <div className="panelHead compact">
+              <div>
+                <p>Current run</p>
+                <h2>Natija</h2>
               </div>
-            ))}
-          </div>
-
-          <div className="panelHead compact borderTop">
-            <div>
-              <p>API routes</p>
-              <h2>Next proxy</h2>
             </div>
-          </div>
-          <div className="apiList">
-            <code>GET /api/backend/health</code>
-            <code>GET /api/backend/sources</code>
-            <code>POST /api/backend/pipeline/run</code>
-          </div>
+            <div className="runStats">
+              <Metric label="Run ID" value={result?.run_id ? result.run_id.slice(0, 8) : "-"} />
+              <Metric label="Records" value={String(result?.records ?? 0)} />
+              <Metric label="Quality" value={`${result?.quality_score ?? 0}%`} />
+              <Metric label="Fields" value={String(result?.curated_fields ?? 0)} />
+            </div>
+          </section>
+
+          <section className="panel qualityPanel">
+            <div className="panelHead compact">
+              <div>
+                <p>Data quality</p>
+                <h2>Tekshiruvlar</h2>
+              </div>
+            </div>
+            <div className="qualityList">
+              {(qualityChecks.length ? qualityChecks : [{ name: "Pipeline", passed: false, value: "kutilmoqda" } as QualityCheck]).map((check) => (
+                <div key={check.name} className={`qualityItem ${check.passed ? "ok" : "warn"}`}>
+                  <Icon name={check.passed ? "check" : "clock"} />
+                  <span>{check.name}</span>
+                  <strong>{check.value}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel endpointPanel">
+            <div className="panelHead compact">
+              <div>
+                <p>Live endpoint</p>
+                <h2>API</h2>
+              </div>
+            </div>
+            <div className="apiList">
+              <code>POST /api/backend/pipeline/run</code>
+              <code>GET /api/backend/health</code>
+            </div>
+          </section>
         </aside>
       </section>
+
+      {result && (
+        <section className="analysisGrid">
+          <ExecutionTimeline
+            stages={result.stages}
+            visitedStageIds={visitedStageIds}
+            playbackStageId={playbackStageId}
+            onSelect={(stageId) => {
+              const stage = stageCatalog.find((item) => item.id === stageId);
+              if (stage) setActiveStage(stage);
+            }}
+          />
+          <RunReport result={result} playbackRunning={playbackRunning} running={running} onRetry={retryPipeline} />
+        </section>
+      )}
 
       <section className="dataGrid">
         <article className="panel tablePanel">
@@ -541,6 +643,8 @@ export function Dashboard() {
         </article>
       </section>
 
+      {result?.lineage.length ? <LineageExplorer records={result.lineage} /> : null}
+
       {activeStage && (
         <div className={`modalBackdrop ${playbackRunning ? "playbackOpen" : ""}`} onClick={() => setActiveStage(null)}>
           <section className="modal wide" onClick={(event) => event.stopPropagation()}>
@@ -550,11 +654,11 @@ export function Dashboard() {
                 <p>{activeStage.layer}</p>
                 <h2>{activeStage.label}</h2>
               </div>
-              <button onClick={() => setActiveStage(null)}>Close</button>
+              <button className="iconButton" onClick={() => setActiveStage(null)} aria-label="Modalni yopish" title="Yopish"><Icon name="close" /></button>
             </div>
             <p className="modalDetail">{activeStage.detail}</p>
             <StageDescriptionBlock stage={activeStage} />
-            <StageRunState result={activeStageResult} />
+            <StageRunState stage={activeStage} result={activeStageResult} />
             <StageInspector stage={activeStage} result={activeStageResult} fallback={activeStaticDetail} />
           </section>
         </div>
@@ -575,6 +679,342 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(`${response.status}: ${text}`);
   }
   return response.json() as Promise<T>;
+}
+
+function ExecutionTimeline({
+  stages,
+  visitedStageIds,
+  playbackStageId,
+  onSelect,
+}: {
+  stages: StageResult[];
+  visitedStageIds: string[];
+  playbackStageId: string | null;
+  onSelect: (stageId: string) => void;
+}) {
+  return (
+    <article className="panel timelinePanel">
+      <div className="panelHead">
+        <div>
+          <p>Execution timeline</p>
+          <h2>Stage vaqt va holatlari</h2>
+        </div>
+        <span className="timelineCount">{stages.length} real stage</span>
+      </div>
+      <div className="timelineList">
+        {stages.map((stage) => {
+          const active = playbackStageId === stage.id;
+          const visited = visitedStageIds.includes(stage.id);
+          const playbackState = active ? "active" : visited ? stage.status : "queued";
+          return (
+            <button
+              type="button"
+              key={stage.id}
+              className={["timelineItem", playbackState].join(" ")}
+              onClick={() => onSelect(stage.id)}
+            >
+              <span className="timelineRail"><i /></span>
+              <time>{formatStageTime(stage.started_at)}</time>
+              <span className="timelineText">
+                <strong>{stage.sequence}. {stage.name}</strong>
+                <small>{stage.message}</small>
+              </span>
+              <span className="timelineMeta">
+                <em>{formatBytes(stage.data_size_bytes)} · {stage.data_format}</em>
+                <b>{stage.duration_ms} ms</b>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+function RunReport({
+  result,
+  playbackRunning,
+  running,
+  onRetry,
+}: {
+  result: PipelineResult;
+  playbackRunning: boolean;
+  running: boolean;
+  onRetry: () => void;
+}) {
+  const destinations = uniqueStrings(
+    result.stages
+      .map((stage) => stage.output_ref)
+      .filter((value): value is string => Boolean(value) && /^(s3|local|clickhouse|postgres|kafka):/.test(value as string)),
+  );
+  const stageDuration = result.stages.reduce((total, stage) => total + stage.duration_ms, 0);
+
+  return (
+    <article className="panel reportPanel">
+      <div className="panelHead">
+        <div>
+          <p>Final report</p>
+          <h2>Run yakuni</h2>
+        </div>
+        <span className={["reportStatus", result.status].join(" ")}>
+          {result.status === "done" ? "SUCCESS" : result.status === "error" ? "FAILED" : "WARNING"}
+        </span>
+      </div>
+      <div className="reportBody">
+        <div className="reportGrid">
+          <ReportValue label="Run ID" value={result.run_id.slice(0, 12)} />
+          <ReportValue label="Records" value={String(result.records)} />
+          <ReportValue label="Quality" value={result.quality_score + "%"} />
+          <ReportValue label="API total" value={formatDuration(result.duration_ms)} />
+          <ReportValue label="Stage total" value={formatDuration(stageDuration)} />
+          <ReportValue label="Mode" value={result.mode.toUpperCase()} />
+        </div>
+
+        <div className="reportSection">
+          <strong>Storage va database natijalari</strong>
+          <div className="destinationList">
+            {destinations.length
+              ? destinations.map((item) => <code key={item}>{item}</code>)
+              : <span>Pipeline bu nuqtaga yetib kelmadi.</span>}
+          </div>
+        </div>
+
+        {result.warnings.length > 0 && (
+          <div className="reportWarnings">
+            <Icon name="alert" />
+            <div>
+              <strong>{result.warnings.length} warning</strong>
+              {result.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+            </div>
+          </div>
+        )}
+
+        <div className="reportFooter">
+          <span>{playbackRunning ? "10 soniyalik tushuntirish davom etmoqda" : "Timeline va lineage tekshirishga tayyor"}</span>
+          {result.status === "error" && (
+            <button className="retryButton" onClick={onRetry} disabled={running || playbackRunning}>
+              <Icon name="refresh" /> Retry normal run
+            </button>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ReportValue({ label, value }: { label: string; value: string }) {
+  return <div className="reportValue"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function LineageExplorer({ records }: { records: LineageRecord[] }) {
+  const [selectedId, setSelectedId] = useState(records[0]?.record_id ?? "");
+
+  useEffect(() => {
+    if (!records.some((record) => record.record_id === selectedId)) {
+      setSelectedId(records[0]?.record_id ?? "");
+    }
+  }, [records, selectedId]);
+
+  const selected = records.find((record) => record.record_id === selectedId) ?? records[0];
+  if (!selected) return null;
+
+  return (
+    <section className="panel lineagePanel">
+      <div className="panelHead">
+        <div>
+          <p>Data lineage</p>
+          <h2>Bitta recordning to'liq yo'li</h2>
+        </div>
+        <label className="lineageSelector">
+          <span>Record</span>
+          <select value={selected.record_id} onChange={(event) => setSelectedId(event.target.value)}>
+            {records.map((record) => <option key={record.record_id} value={record.record_id}>ID {record.record_id}</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="lineagePath">
+        <LineageNode index="01" title="Source API" state="source" data={selected.source} />
+        <span className="lineageArrow"><Icon name="route" /></span>
+        <LineageNode index="02" title="Raw Zone" state="raw" data={selected.raw} />
+        <span className="lineageArrow"><Icon name="route" /></span>
+        <LineageNode index="03" title="Curated" state={selected.curated ? "curated" : "missing"} data={selected.curated} />
+        <span className="lineageArrow"><Icon name="route" /></span>
+        <LineageNode index="04" title="ClickHouse" state={selected.warehouse ? "warehouse" : "missing"} data={selected.warehouse} />
+      </div>
+      <div className="lineageDiff">
+        <DataDiffView input={selected.raw} output={selected.curated} title="Raw → Curated field lineage" />
+      </div>
+    </section>
+  );
+}
+
+function LineageNode({ index, title, state, data }: { index: string; title: string; state: string; data: unknown }) {
+  return (
+    <article className={["lineageNode", state].join(" ")}>
+      <header><span>{index}</span><strong>{title}</strong></header>
+      <JsonBlock value={data} />
+    </article>
+  );
+}
+
+function ScenarioCanvas({
+  stageResults,
+  visitedStageIds,
+  playbackStageId,
+  playbackRunning,
+  apiRunning,
+  totalRecords,
+  runStatus,
+  onSelect,
+}: {
+  stageResults: Map<string, StageResult>;
+  visitedStageIds: string[];
+  playbackStageId: string | null;
+  playbackRunning: boolean;
+  apiRunning: boolean;
+  totalRecords: number;
+  runStatus?: PipelineResult["status"];
+  onSelect: (stage: StageMeta) => void;
+}) {
+  const nodeMap = new Map(scenarioNodes.map((node) => [node.id, node]));
+  const stageMap = new Map(stageCatalog.map((stage) => [stage.id, stage]));
+  const playbackStarted = playbackRunning || visitedStageIds.length > 0;
+  const activeLabel = playbackStageId ? stageMap.get(playbackStageId)?.label : null;
+  const activeResult = playbackStageId ? stageResults.get(playbackStageId) : undefined;
+  const packetEdge = playbackStageId
+    ? scenarioEdges.find((edge) => edge.from === playbackStageId) ?? scenarioEdges.find((edge) => edge.to === playbackStageId)
+    : undefined;
+  const packetFrom = packetEdge ? nodeMap.get(packetEdge.from) : undefined;
+  const packetTo = packetEdge ? nodeMap.get(packetEdge.to) : undefined;
+  const runLabel = apiRunning
+    ? "API javobi kutilmoqda"
+    : playbackRunning
+      ? `${activeLabel || "Pipeline"} bajarilmoqda`
+      : stageResults.size
+        ? runStatus === "error" ? "Execution xatolikda to'xtadi" : "Execution tugadi"
+        : "Run uchun tayyor";
+
+  return (
+    <div className="scenarioViewport">
+      <div className="scenarioMap" style={{ width: SCENARIO_WIDTH, height: SCENARIO_HEIGHT }}>
+        <span className="canvasGroupLabel ingestionLabel">Ingestion va data lake</span>
+        <span className="canvasGroupLabel orchestrationLabel">Orchestration</span>
+        <span className="canvasGroupLabel deliveryLabel">Warehouse va delivery</span>
+
+        <div className={["canvasRunBadge", apiRunning || playbackRunning ? "running" : stageResults.size ? "complete" : "idle"].join(" ")}>
+          <i />
+          <span>{runLabel}</span>
+        </div>
+
+        <svg className="scenarioConnections" viewBox={`0 0 ${SCENARIO_WIDTH} ${SCENARIO_HEIGHT}`} aria-hidden="true">
+          {scenarioEdges.map((edge) => {
+            const from = nodeMap.get(edge.from);
+            const to = nodeMap.get(edge.to);
+            if (!from || !to) return null;
+            const active = playbackStageId === edge.from || playbackStageId === edge.to;
+            const complete = visitedStageIds.includes(edge.to);
+            const path = scenarioPath(from, to);
+            return (
+              <g key={`${edge.from}-${edge.to}`}>
+                <path
+                  d={path}
+                  className={["scenarioEdge", edge.kind || "main", active ? "active" : "", complete && !active ? "complete" : ""].filter(Boolean).join(" ")}
+                />
+                {active && activeResult && (
+                  <circle className="packetDot" r="6">
+                    <animateMotion dur="1.8s" repeatCount="indefinite" path={path} />
+                  </circle>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+
+        {activeResult && packetFrom && packetTo && (
+          <div
+            className="dataPacketBadge"
+            style={{ left: (packetFrom.x + packetTo.x) / 2, top: (packetFrom.y + packetTo.y) / 2 - 24 }}
+          >
+            <i />
+            <strong>{getStageRecordCount(activeResult, totalRecords)} records</strong>
+            <span>{formatBytes(activeResult.data_size_bytes)}</span>
+            <span>{activeResult.data_format}</span>
+          </div>
+        )}
+
+        {scenarioNodes.map((node, index) => {
+          const stage = stageMap.get(node.id);
+          if (!stage) return null;
+          const stageResult = stageResults.get(stage.id);
+          const isVisited = visitedStageIds.includes(stage.id);
+          const isPlaying = playbackStageId === stage.id;
+          const codeStatus = stageCodeSamples[stage.id]?.status;
+          let visualState = codeStatus === "not_connected" ? "notConnected" : "available";
+          let stateLabel = codeStatus === "not_connected" ? "NOT CONNECTED" : "AVAILABLE";
+
+          if (stageResult) {
+            if (isPlaying) {
+              visualState = "playing";
+              stateLabel = "RUNNING 10s";
+            } else if (playbackStarted && !isVisited) {
+              visualState = "queued";
+              stateLabel = "QUEUED";
+            } else {
+              visualState = stageResult.status;
+              stateLabel = stageResult.status === "done"
+                ? "REAL EXECUTED"
+                : stageResult.status === "error"
+                  ? "TEST ERROR"
+                  : "REAL WARNING";
+            }
+          }
+
+          const style = {
+            left: node.x,
+            top: node.y,
+            "--node-color": stage.color,
+          } as CSSProperties & { "--node-color": string };
+
+          return (
+            <button
+              type="button"
+              key={stage.id}
+              className={["scenarioNode", visualState, isVisited ? "visited" : ""].filter(Boolean).join(" ")}
+              style={style}
+              onClick={() => onSelect(stage)}
+              title={stage.detail}
+            >
+              <span className="nodeOrder">{index + 1}</span>
+              <span className="moduleOrb">
+                <Icon name={stage.icon} />
+                <i className="nodeStateDot" />
+              </span>
+              <span className="moduleLabel">
+                <strong>{stage.label}</strong>
+                <small>{stage.layer}</small>
+              </span>
+              <span className="nodeStatus">{stateLabel}</span>
+              {isPlaying && <span className="nodeProgress" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function scenarioPath(from: ScenarioNode, to: ScenarioNode): string {
+  if (from.y === to.y) {
+    const middle = (from.x + to.x) / 2;
+    return "M " + from.x + " " + from.y + " C " + middle + " " + from.y + ", " + middle + " " + to.y + ", " + to.x + " " + to.y;
+  }
+  if (from.x === to.x) {
+    const middle = (from.y + to.y) / 2;
+    return "M " + from.x + " " + from.y + " C " + from.x + " " + middle + ", " + to.x + " " + middle + ", " + to.x + " " + to.y;
+  }
+  const direction = to.x >= from.x ? 1 : -1;
+  const curve = Math.max(60, Math.abs(to.x - from.x) * 0.45);
+  return "M " + from.x + " " + from.y + " C " + (from.x + curve * direction) + " " + from.y + ", " + (to.x - curve * direction) + " " + to.y + ", " + to.x + " " + to.y;
 }
 
 
@@ -604,12 +1044,21 @@ function DescriptionItem({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function StageRunState({ result }: { result?: StageResult }) {
+function StageRunState({ stage, result }: { stage: StageMeta; result?: StageResult }) {
   if (!result) {
+    const codeStatus = stageCodeSamples[stage.id]?.status;
+    if (codeStatus === "not_connected") {
+      return (
+        <div className="runState error">
+          <Icon name="alert" />
+          <span><strong>NOT CONNECTED</strong> - Bu texnologiya arxitekturada bor, lekin hozirgi repository va manual API run bilan ulanmagan.</span>
+        </div>
+      );
+    }
     return (
-      <div className="runState idle">
+      <div className="runState available">
         <Icon name="clock" />
-        <span>Bu stage shu manual API run ichida bajarilmadi. Quyida uning kod/servis joyi va kutiladigan input-output ko'rsatilgan.</span>
+        <span><strong>AVAILABLE</strong> - Kod yoki servis asseti mavjud, ammo shu manual API run ichida bajarilmadi.</span>
       </div>
     );
   }
@@ -617,7 +1066,7 @@ function StageRunState({ result }: { result?: StageResult }) {
   return (
     <div className={`runState ${result.status}`}>
       <Icon name={result.status === "done" ? "check" : result.status === "warning" ? "alert" : "alert"} />
-      <span>{result.status.toUpperCase()} - {result.duration_ms}ms - {result.message}</span>
+      <span><strong>{result.status === "done" ? "REAL EXECUTED" : result.status === "error" ? "TEST ERROR" : "REAL WARNING"}</strong> - {result.duration_ms}ms - {result.message}</span>
     </div>
   );
 }
@@ -633,26 +1082,158 @@ function StageInspector({ stage, result, fallback }: { stage: StageMeta; result?
   return (
     <div className="inspector">
       <div className="deepGrid">
-        <DetailCard title="Oldin / Input" icon="database" refValue={inputRef} data={inputPreview} />
-        <article className="detailCard">
-          <div className="detailTitle"><Icon name="workflow" /><strong>Process</strong></div>
-          <div className="processList compactList">
-            {(processMap[stage.id] || []).map((process, index) => (
-              <div key={process} className="processItem">
-                <span>{index + 1}</span>
-                <strong>{process}</strong>
-                <em>{result?.status || "code"}</em>
-              </div>
-            ))}
-          </div>
-        </article>
-        <DetailCard title="Keyin / Output" icon="layers" refValue={outputRef} data={outputPreview} />
+        <TransformationFlow
+          stage={stage}
+          status={result?.status}
+          inputRef={inputRef}
+          outputRef={outputRef}
+          input={inputPreview}
+          output={outputPreview}
+        />
+        <DataDiffView input={inputPreview} output={outputPreview} />
         <DetailCard title="Metrics" icon="chart" data={metrics} />
+        <CodePanel stage={stage} />
         <DetailCard title="Artifacts / Code" icon="code" data={artifacts} wide />
         <DetailCard title="Raw stage JSON" icon="server" data={result ?? fallback ?? { status: "idle" }} wide />
       </div>
     </div>
   );
+}
+
+function TransformationFlow({
+  stage,
+  status,
+  inputRef,
+  outputRef,
+  input,
+  output,
+}: {
+  stage: StageMeta;
+  status?: StageResult["status"];
+  inputRef?: string | null;
+  outputRef?: string | null;
+  input?: unknown;
+  output?: unknown;
+}) {
+  return (
+    <article className="detailCard wide transformationCard">
+      <div className="detailTitle"><Icon name="workflow" /><strong>Input → Process → Output</strong></div>
+      <div className="transformationFlow">
+        <section className="flowColumn input">
+          <header><span>01</span><strong>Oldin / Input</strong></header>
+          {inputRef && <code className="refLine">{inputRef}</code>}
+          <JsonBlock value={input} />
+        </section>
+        <span className="flowArrow"><Icon name="route" /></span>
+        <section className="flowColumn process">
+          <header><span>02</span><strong>Process</strong></header>
+          <div className="processList compactList">
+            {(processMap[stage.id] || []).map((process, index) => (
+              <div key={process} className="processItem">
+                <span>{index + 1}</span>
+                <strong>{process}</strong>
+                <em>{status || "asset"}</em>
+              </div>
+            ))}
+          </div>
+        </section>
+        <span className="flowArrow"><Icon name="route" /></span>
+        <section className="flowColumn output">
+          <header><span>03</span><strong>Keyin / Output</strong></header>
+          {outputRef && <code className="refLine">{outputRef}</code>}
+          <JsonBlock value={output} />
+        </section>
+      </div>
+    </article>
+  );
+}
+
+type DiffRow = {
+  field: string;
+  before: unknown;
+  after: unknown;
+  state: "added" | "removed" | "changed" | "same";
+};
+
+function DataDiffView({ input, output, title = "O'zgargan fieldlar" }: { input: unknown; output: unknown; title?: string }) {
+  const rows = buildDiffRows(input, output);
+  const changed = rows.filter((row) => row.state !== "same").length;
+
+  return (
+    <article className="detailCard wide diffCard">
+      <div className="detailTitle">
+        <Icon name="layers" />
+        <strong>{title}</strong>
+        <span className="diffCount">{changed} changed</span>
+      </div>
+      <div className="diffTable">
+        <div className="diffHeader"><span>Field</span><span>Oldin</span><span>Keyin</span><span>Holat</span></div>
+        {rows.length ? rows.map((row) => (
+          <div className={["diffRow", row.state].join(" ")} key={row.field}>
+            <code>{row.field}</code>
+            <span>{formatDiffValue(row.before)}</span>
+            <span>{formatDiffValue(row.after)}</span>
+            <em>{row.state}</em>
+          </div>
+        )) : <div className="diffEmpty">Taqqoslash uchun record mavjud emas.</div>}
+      </div>
+    </article>
+  );
+}
+
+function CodePanel({ stage }: { stage: StageMeta }) {
+  const sample = stageCodeSamples[stage.id];
+  if (!sample) return null;
+  const statusLabel = sample.status === "real" ? "REAL CODE" : sample.status === "asset" ? "AVAILABLE ASSET" : "NOT CONNECTED";
+
+  return (
+    <article className="detailCard codePanel">
+      <div className="detailTitle codeTitle">
+        <Icon name="code" />
+        <strong>Technology code</strong>
+        <span className={["codeStatus", sample.status].join(" ")}>{statusLabel}</span>
+      </div>
+      <div className="codeMeta"><code>{sample.file}</code><span>{sample.language}</span></div>
+      <SyntaxCode code={sample.code} language={sample.language} />
+    </article>
+  );
+}
+
+function SyntaxCode({ code, language }: { code: string; language: string }) {
+  return (
+    <pre className={["syntaxCode", language].join(" ")}><code>
+      {code.split("\n").map((line, index) => (
+        <span className="codeLine" key={index}>
+          <i>{String(index + 1).padStart(2, "0")}</i>
+          <span>{highlightCodeLine(line)}</span>
+        </span>
+      ))}
+    </code></pre>
+  );
+}
+
+function highlightCodeLine(line: string): React.ReactNode[] {
+  const pattern = /(#.*$|--.*$|"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|\b(?:async|await|def|class|return|if|else|for|in|from|import|try|except|with|as|select|insert|into|values|update|set|on|conflict|group|by|create|table|true|false|const|let|function|export|new)\b|\b\d+(?:\.\d+)?\b)/gi;
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+
+  for (const match of line.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    if (index > cursor) nodes.push(line.slice(cursor, index));
+    const token = match[0];
+    const className = token.startsWith("#") || token.startsWith("--")
+      ? "comment"
+      : token.startsWith('"') || token.startsWith("'")
+        ? "string"
+        : /^\d/.test(token)
+          ? "number"
+          : "keyword";
+    nodes.push(<span className={className} key={index}>{token}</span>);
+    cursor = index + token.length;
+  }
+
+  if (cursor < line.length) nodes.push(line.slice(cursor));
+  return nodes;
 }
 
 function DetailCard({ title, icon, refValue, data, wide = false }: { title: string; icon: IconName; refValue?: string | null; data?: unknown; wide?: boolean }) {
@@ -667,6 +1248,98 @@ function DetailCard({ title, icon, refValue, data, wide = false }: { title: stri
 
 function JsonBlock({ value }: { value: unknown }) {
   return <pre className="jsonBlock">{hasData(value) ? formatJson(value) : "No data for this stage yet"}</pre>;
+}
+
+function buildDiffRows(input: unknown, output: unknown): DiffRow[] {
+  const before = flattenComparable(input);
+  const after = flattenComparable(output);
+  const fields = [...new Set([...Object.keys(before), ...Object.keys(after)])].slice(0, 24);
+
+  return fields.map((field) => {
+    const beforeValue = before[field];
+    const afterValue = after[field];
+    let state: DiffRow["state"] = "same";
+    if (!(field in before)) state = "added";
+    else if (!(field in after)) state = "removed";
+    else if (JSON.stringify(beforeValue) !== JSON.stringify(afterValue)) state = "changed";
+    return { field, before: beforeValue, after: afterValue, state };
+  });
+}
+
+function flattenComparable(value: unknown): Record<string, unknown> {
+  const record = pickComparableRecord(value);
+  if (!record) return {};
+  const flattened: Record<string, unknown> = {};
+
+  Object.entries(record).forEach(([key, item]) => {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      Object.entries(item as Record<string, unknown>).forEach(([nestedKey, nestedValue]) => {
+        flattened[key + "." + nestedKey] = nestedValue;
+      });
+    } else {
+      flattened[key] = item;
+    }
+  });
+  return flattened;
+}
+
+function pickComparableRecord(value: unknown): Record<string, unknown> | null {
+  if (Array.isArray(value)) {
+    const first = value[0];
+    return first && typeof first === "object" ? first as Record<string, unknown> : null;
+  }
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.sample) && record.sample[0] && typeof record.sample[0] === "object") {
+    return record.sample[0] as Record<string, unknown>;
+  }
+  if (record.event && typeof record.event === "object") {
+    return record.event as Record<string, unknown>;
+  }
+  return record;
+}
+
+function formatDiffValue(value: unknown): string {
+  if (value === undefined) return "—";
+  const formatted = typeof value === "object" ? JSON.stringify(value) : String(value);
+  return formatted.length > 90 ? formatted.slice(0, 90) + "..." : formatted;
+}
+
+function getStageRecordCount(stage: StageResult, fallback: number): number {
+  const keys = ["records_received", "records_written", "records_in_event", "input_rows", "output_rows", "inserted_rows", "records"];
+  for (const key of keys) {
+    const value = stage.metrics?.[key];
+    if (typeof value === "number") return value;
+  }
+  return fallback;
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function formatStageTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--:--:--";
+  return date.toLocaleTimeString("uz-UZ", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    fractionalSecondDigits: 3,
+  });
+}
+
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) return durationMs + " ms";
+  return (durationMs / 1000).toFixed(2) + " s";
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function getColumns(rows: Record<string, unknown>[], view: View): string[] {
@@ -743,4 +1416,5 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   alert: <><path d="M12 9v4M12 17h0" /><path d="M10.3 3.9 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></>,
   server: <><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" /><path d="M8 7h0M8 17h0" /></>,
+  close: <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>,
 };
