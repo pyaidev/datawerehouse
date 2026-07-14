@@ -257,12 +257,73 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 }
 .compactList { padding: 0; }
 .compactList .processItem { background: #fff; }
+
+.panelActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.playbackBadge {
+  min-height: 34px;
+  min-width: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 900;
+}
+.playbackBadge.running { color: #0f376d; background: #edf4ff; border-color: #bcd5f5; }
+.stageCard { position: relative; overflow: hidden; transition: border-color 480ms ease, box-shadow 480ms ease, transform 480ms ease, background 480ms ease; }
+.stageCard.visited { background: linear-gradient(180deg, #ffffff 0%, #f7fbf9 100%); }
+.stageCard.playing {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(35, 87, 183, 0.14), 0 16px 32px rgba(24, 33, 46, 0.14);
+  transform: translateY(-2px);
+  animation: stagePulse 1.8s ease-in-out infinite;
+}
+.stageCard.playing .stageIcon { background: var(--green); }
+.stageCard.playing::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+  transform-origin: left center;
+  animation: stageProgress 1.8s linear infinite;
+}
+.modalBackdrop.playbackOpen { animation: backdropFade 360ms ease both; }
+.modal { animation: modalRise 460ms ease both; }
+
+@keyframes stagePulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(35, 87, 183, 0.12), 0 16px 32px rgba(24, 33, 46, 0.12); }
+  50% { box-shadow: 0 0 0 6px rgba(35, 87, 183, 0.2), 0 20px 42px rgba(24, 33, 46, 0.18); }
+}
+
+@keyframes stageProgress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes backdropFade {
+  from { background: rgba(17, 25, 35, 0.2); }
+  to { background: rgba(17, 25, 35, 0.58); }
+}
+
+@keyframes modalRise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 @media (max-width: 1250px) {
   .mainGrid, .dataGrid { grid-template-columns: 1fr; }
   .stageGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 860px) {
+  .panelActions { justify-content: stretch; }
+  .panelActions .smallButton, .playbackBadge { flex: 1 1 auto; }
   .deepGrid { grid-template-columns: 1fr; }
   .detailCard.wide { grid-column: auto; }
   .topbar, .panelHead { align-items: stretch; flex-direction: column; }

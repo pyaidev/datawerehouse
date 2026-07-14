@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { HealthResponse, PipelineResult, QualityCheck, SourcesResponse, StageResult } from "../lib/types";
 
 type Mode = "batch" | "stream" | "api";
@@ -156,6 +156,8 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   },
 };
 
+const PLAYBACK_STEP_MS = 1800;
+
 export function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [sources, setSources] = useState<SourcesResponse>({});
@@ -169,10 +171,15 @@ export function Dashboard() {
   const [activeStage, setActiveStage] = useState<StageMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [frontendHost, setFrontendHost] = useState("loading");
+  const [playbackStageId, setPlaybackStageId] = useState<string | null>(null);
+  const [playbackRunning, setPlaybackRunning] = useState(false);
+  const [visitedStageIds, setVisitedStageIds] = useState<string[]>([]);
+  const playbackTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     setFrontendHost(window.location.host);
     void loadInitial();
+    return () => clearPlaybackTimers();
   }, []);
 
   const stageResults = useMemo(() => {
@@ -186,6 +193,8 @@ export function Dashboard() {
   const qualityChecks = result?.quality_checks || [];
   const activeStageResult = activeStage ? stageResults.get(activeStage.id) : undefined;
   const activeStaticDetail = activeStage ? staticStageDetails[activeStage.id] : undefined;
+  const playbackTotal = result?.stages.length ?? 0;
+  const playbackPosition = playbackStageId ? visitedStageIds.indexOf(playbackStageId) + 1 : visitedStageIds.length;
 
   async function loadInitial() {
     try {
@@ -204,6 +213,11 @@ export function Dashboard() {
   async function runPipeline() {
     setRunning(true);
     setError(null);
+    clearPlaybackTimers();
+    setPlaybackRunning(false);
+    setPlaybackStageId(null);
+    setVisitedStageIds([]);
+    setActiveStage(null);
     setResult(null);
     setLogs([]);
     addLog(`POST /api/backend/pipeline/run source=${source} limit=${limit} mode=${mode}`);
@@ -218,14 +232,57 @@ export function Dashboard() {
       addLog(`run_id=${nextResult.run_id}`);
       nextResult.stages.forEach((stage) => addLog(`${stage.id}: ${stage.status} ${stage.duration_ms}ms ${shorten(stage.message)}`));
       if (nextResult.warnings.length) nextResult.warnings.forEach((warning) => addLog(`warning: ${warning}`));
+      startStagePlayback(nextResult);
     } catch (err) {
       setError(formatError(err));
+      clearPlaybackTimers();
+      setPlaybackRunning(false);
+      setPlaybackStageId(null);
+      setVisitedStageIds([]);
       addLog(`error: ${formatError(err)}`);
     } finally {
       setRunning(false);
     }
   }
 
+  function clearPlaybackTimers() {
+    playbackTimers.current.forEach((timer) => clearTimeout(timer));
+    playbackTimers.current = [];
+  }
+
+  function startStagePlayback(nextResult: PipelineResult) {
+    clearPlaybackTimers();
+    const resultStageIds = new Set(nextResult.stages.map((stage) => stage.id));
+    const playableStages = stageCatalog.filter((stage) => resultStageIds.has(stage.id));
+
+    setPlaybackStageId(null);
+    setVisitedStageIds([]);
+    setActiveStage(null);
+
+    if (!playableStages.length) {
+      setPlaybackRunning(false);
+      return;
+    }
+
+    setPlaybackRunning(true);
+    playableStages.forEach((stage, index) => {
+      const timer = setTimeout(() => {
+        setPlaybackStageId(stage.id);
+        setVisitedStageIds((current) => current.includes(stage.id) ? current : [...current, stage.id]);
+        setActiveStage(stage);
+        addLog(`animation: ${index + 1}/${playableStages.length} ${stage.id}`);
+
+        if (index === playableStages.length - 1) {
+          const endTimer = setTimeout(() => {
+            setPlaybackRunning(false);
+            setPlaybackStageId(null);
+          }, PLAYBACK_STEP_MS);
+          playbackTimers.current.push(endTimer);
+        }
+      }, index * PLAYBACK_STEP_MS);
+      playbackTimers.current.push(timer);
+    });
+  }
   return (
     <main className="shell">
       <header className="topbar">
@@ -286,14 +343,22 @@ export function Dashboard() {
               <p>Pipeline</p>
               <h2>Real API flow</h2>
             </div>
-            <button className="smallButton" onClick={loadInitial}><Icon name="refresh" /> Refresh</button>
+            <div className="panelActions">
+              {result && <span className={`playbackBadge ${playbackRunning ? "running" : ""}`}>{Math.max(playbackPosition, 0)}/{playbackTotal}</span>}
+              <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running || playbackRunning}><Icon name="play" /> Replay</button>
+              <button className="smallButton" onClick={loadInitial} disabled={running}><Icon name="refresh" /> Refresh</button>
+            </div>
           </div>
           <div className="stageGrid">
             {stageCatalog.map((stage) => {
               const stageResult = stageResults.get(stage.id);
-              const status = stageResult?.status || "idle";
+              const isVisited = visitedStageIds.includes(stage.id);
+              const isPlaying = playbackStageId === stage.id;
+              const status = stageResult
+                ? ((playbackRunning || visitedStageIds.length > 0) && !isVisited ? "idle" : stageResult.status)
+                : "idle";
               return (
-                <button key={stage.id} className={`stageCard ${status}`} onClick={() => setActiveStage(stage)}>
+                <button key={stage.id} className={`stageCard ${status} ${isPlaying ? "playing" : ""} ${isVisited && !isPlaying ? "visited" : ""}`} onClick={() => setActiveStage(stage)}>
                   <span className="stageIcon"><Icon name={stage.icon} /></span>
                   <span>
                     <strong>{stage.label}</strong>
@@ -375,7 +440,7 @@ export function Dashboard() {
       </section>
 
       {activeStage && (
-        <div className="modalBackdrop" onClick={() => setActiveStage(null)}>
+        <div className={`modalBackdrop ${playbackRunning ? "playbackOpen" : ""}`} onClick={() => setActiveStage(null)}>
           <section className="modal wide" onClick={(event) => event.stopPropagation()}>
             <div className="modalHead">
               <span className="modalIcon"><Icon name={activeStage.icon} /></span>
@@ -422,7 +487,7 @@ function StageRunState({ result }: { result?: StageResult }) {
   return (
     <div className={`runState ${result.status}`}>
       <Icon name={result.status === "done" ? "check" : result.status === "warning" ? "alert" : "alert"} />
-      <span>{result.status.toUpperCase()} · {result.duration_ms}ms · {result.message}</span>
+      <span>{result.status.toUpperCase()} - {result.duration_ms}ms - {result.message}</span>
     </div>
   );
 }

@@ -720,3 +720,41 @@ Manual run ichida hali bevosita trigger qilinmaydigan, lekin kod/asset sifatida 
 - Keycloak JWT enforcement
 - ELK log stack
 - CSV/PDF export endpoint
+## 17. Step Animation / Auto Modal
+
+### Nima qo'shildi
+
+Pipeline run tugagandan keyin frontend real backend response ichidagi stage natijalarini sekin playback qiladi. Har bir real stage navbat bilan highlight bo'ladi va o'sha stage modali avtomatik ochiladi.
+
+### Qanday ishlaydi
+
+1. User `Run Pipeline` bosadi.
+2. Next.js `POST /api/backend/pipeline/run` orqali FastAPI ga request yuboradi.
+3. Backend barcha stage natijalarini qaytaradi.
+4. Frontend `startStagePlayback()` bilan stage'larni ketma-ket ko'rsatadi.
+5. Har stage uchun 1.8 sekund vaqt beriladi.
+6. Current stage card `playing` class oladi.
+7. Oldin o'tgan stage card `visited` class oladi.
+8. `activeStage` avtomatik o'zgaradi va modal o'zi ochiladi.
+9. Replay tugmasi shu animatsiyani qayta ko'rsatadi.
+
+### Kodlar
+
+- `frontend/components/Dashboard.tsx`
+  - `PLAYBACK_STEP_MS = 1800`
+  - `playbackStageId`
+  - `playbackRunning`
+  - `visitedStageIds`
+  - `startStagePlayback()`
+  - `clearPlaybackTimers()`
+- `frontend/app/globals.css`
+  - `.stageCard.playing`
+  - `.stageCard.visited`
+  - `.playbackBadge`
+  - `@keyframes stagePulse`
+  - `@keyframes stageProgress`
+  - `@keyframes modalRise`
+
+### Halol izoh
+
+Bu hozir backend streaming emas. Backend response bitta marta qaytadi, frontend esa shu real natijani foydalanuvchiga tushunarli qilish uchun step-by-step playback qiladi. Real-time streaming kerak bo'lsa keyingi bosqichda SSE yoki WebSocket endpoint qo'shiladi.
