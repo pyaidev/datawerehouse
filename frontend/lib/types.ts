@@ -33,10 +33,17 @@ export type StageResult = {
   artifacts?: Record<string, unknown>;
 };
 
+export type ManualCorrection = {
+  record_id: string;
+  column: string;
+  value: unknown;
+};
+
 export type LineageRecord = {
   record_id: string;
   source: Record<string, unknown>;
   raw: Record<string, unknown>;
+  prepared: Record<string, unknown> | null;
   curated: Record<string, unknown> | null;
   warehouse: Record<string, unknown> | null;
 };
@@ -57,6 +64,7 @@ export type PipelineResult = {
   quality_checks: QualityCheck[];
   warnings: string[];
   raw_preview: Record<string, unknown>[];
+  prepared_preview: Record<string, unknown>[];
   curated_preview: Record<string, unknown>[];
   lineage: LineageRecord[];
 };

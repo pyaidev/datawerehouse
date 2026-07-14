@@ -1,11 +1,11 @@
 # Data Warehouse Pipeline Steplari Tafsiloti
 
-Bu hujjat loyihadagi har bir Data Warehouse stepida real nima bajarilishini tushuntiradi. Frontenddagi stage card bosilganda modal ichida shu mantiqning qisqa varianti ko'rinadi: `Oldin / Input`, `Process`, `Keyin / Output`, `Metrics`, `Artifacts / Code` va `Raw stage JSON`.
+Bu hujjat loyihadagi har bir Data Warehouse stepida real nima bajarilishini tushuntiradi. Frontenddagi stage bosilganda o'ng inspector sidebar ichida `Process`, `Oldin / Input`, `Keyin / Output`, `Metrics`, `Artifacts / Code` va `Raw stage JSON` ko'rinadi.
 
 ## Umumiy Flow
 
 ```text
-Source API -> FastAPI -> Kafka -> MinIO Landing -> MinIO Raw -> Quality Check -> Transform -> Curated Zone -> ClickHouse -> PostgreSQL Audit -> Next.js UI
+Source API -> FastAPI -> Kafka -> MinIO Landing -> MinIO Raw -> Data Preparation -> Quality Check -> Transform -> Curated Zone -> ClickHouse -> PostgreSQL Audit -> Next.js UI
 ```
 
 Manual `Run Pipeline` tugmasi hozir FastAPI endpointni chaqiradi:
@@ -217,18 +217,71 @@ Stage response ichida:
 
 ---
 
-## 5. Great Expectations Style Quality Check
+## 5. Data Preparation va Manual Correction
 
 ### Nima qiladi
 
-Raw rows sifatini tekshiradi. Bu loyiha ichida yengil validator yozilgan, Great Expectations uslubidagi checklar bilan ishlaydi.
+Raw datani DWH ga yuborishdan oldin profil qiladi, string qiymatlarni trim qiladi, bo'sh stringlarni `NULL` ga o'tkazadi va operator yuborgan correction rule'larni qo'llaydi. Raw object o'zgarmaydi.
 
 ### Input
 
-Raw rows:
-
 ```text
 s3://raw-zone/products/<run_id>/raw.json
+```
+
+Manual correction request misoli:
+
+```json
+{
+  "corrections": [
+    {
+      "record_id": "1",
+      "column": "title",
+      "value": "Tuzatilgan nom"
+    }
+  ]
+}
+```
+
+### Process
+
+1. Row va column turlari profil qilinadi.
+2. String qiymatlar trim qilinadi.
+3. Bo'sh stringlar `NULL` ga normalize qilinadi.
+4. `record_id + column` rule target rowga bog'lanadi.
+5. Yangi qiymat oldingi qiymat typeiga moslashtiriladi.
+6. Applied va rejected correction auditi tuziladi.
+7. Natija versionlangan `prepared.json` object sifatida MinIO ga yoziladi.
+
+### Output
+
+```text
+s3://raw-zone/products/<run_id>/prepared.json
+```
+
+Stage metrics ichida `columns_profiled`, `trimmed_values`, `blank_to_null`, `manual_corrections_applied` va `manual_corrections_rejected` qaytadi. Frontenddagi workbench correction queue yaratadi va qayta run orqali shu rule'larni backendga yuboradi.
+
+### Kodlar
+
+- `backend/app/preparation.py`
+- `backend/app/schemas.py`
+- `backend/app/pipeline.py`
+- `frontend/components/Dashboard.tsx`
+
+---
+
+## 6. Great Expectations Style Quality Check
+
+### Nima qiladi
+
+Prepared rows sifatini tekshiradi. Bu loyiha ichida yengil validator yozilgan, Great Expectations uslubidagi checklar bilan ishlaydi.
+
+### Input
+
+Prepared rows:
+
+```text
+s3://raw-zone/products/<run_id>/prepared.json
 ```
 
 ### Process
@@ -262,18 +315,18 @@ Stage response ichida:
 
 ---
 
-## 6. Transform / PySpark Compatible Layer
+## 7. Transform / PySpark Compatible Layer
 
 ### Nima qiladi
 
-Raw rows ni curated business schema ga o'tkazadi. Hozir manual API run ichida Python transform ishlaydi, PySpark job esa alohida `spark-submit` uchun tayyorlangan.
+Prepared rows ni curated business schema ga o'tkazadi. Hozir manual API run ichida Python transform ishlaydi, PySpark job esa alohida `spark-submit` uchun tayyorlangan.
 
 ### Input
 
-Raw sample rows:
+Prepared sample rows:
 
 ```text
-s3://raw-zone/products/<run_id>/raw.json
+s3://raw-zone/products/<run_id>/prepared.json
 ```
 
 ### Process
@@ -317,7 +370,7 @@ Stage response ichida:
 
 ---
 
-## 7. Curated Zone Write
+## 8. Curated Zone Write
 
 ### Nima qiladi
 
@@ -361,7 +414,7 @@ Eslatma: compose ichida bucket nomi hozir `raw-zone` ichida curated key bilan yo
 
 ---
 
-## 8. ClickHouse Warehouse Load
+## 9. ClickHouse Warehouse Load
 
 ### Nima qiladi
 
@@ -412,7 +465,7 @@ docker compose exec -T clickhouse clickhouse-client --user dwh --password dwh --
 
 ---
 
-## 9. PostgreSQL ODS / Audit
+## 10. PostgreSQL ODS / Audit
 
 ### Nima qiladi
 
@@ -468,11 +521,11 @@ docker compose exec -T postgres psql -U dwh -d dwh -c "select run_id, source, mo
 
 ---
 
-## 10. Next.js Frontend / Visualization Portal
+## 11. Next.js Frontend / Visualization Portal
 
 ### Nima qiladi
 
-Frontend pipeline runni boshqaradi va stage holatlarini visual ko'rsatadi. Har bir stage card bosilganda deep inspector modal ochiladi.
+Frontend pipeline runni boshqaradi va stage holatlarini visual ko'rsatadi. Har bir stage bosilganda o'ngdagi deep inspector sidebar yangilanadi; modal ochilmaydi.
 
 ### Input
 
@@ -487,9 +540,9 @@ POST /api/backend/pipeline/run
 1. User source, limit va mode tanlaydi.
 2. Default mode `api`.
 3. `Run Pipeline` bosilganda Next API proxy FastAPI ga request yuboradi.
-4. Response ichidagi `stages`, `raw_preview`, `curated_preview`, `quality_checks` state ga yoziladi.
+4. Response ichidagi `stages`, `raw_preview`, `prepared_preview`, `curated_preview`, `quality_checks` state ga yoziladi.
 5. UI cardlar stage statusiga qarab `done`, `warning`, `error`, `idle` ko'rinish oladi.
-6. Stage bosilganda modal stage detailni ko'rsatadi.
+6. Stage bosilganda o'ng sidebar stage detailni ko'rsatadi.
 
 ### Output
 
@@ -501,9 +554,10 @@ UI quyidagilarni ko'rsatadi:
 - Curated fields count
 - Pipeline stage cards
 - Quality checks
-- Raw/Curated preview table
+- Raw/Prepared/Curated preview table
+- Manual correction workbench va preparation audit
 - Run logs
-- Stage deep inspector modal
+- Stage deep inspector sidebar
 
 ### Kodlar
 
@@ -530,7 +584,7 @@ http://172.16.4.138:7777
 
 ---
 
-## 11. NiFi Stage
+## 12. NiFi Stage
 
 ### Hozirgi holati
 
@@ -559,7 +613,7 @@ http://localhost:8080
 
 ---
 
-## 12. Airflow Stage
+## 13. Airflow Stage
 
 ### Hozirgi holati
 
@@ -594,7 +648,7 @@ admin / admin
 
 ---
 
-## 13. dbt Stage
+## 14. dbt Stage
 
 ### Hozirgi holati
 
@@ -619,7 +673,7 @@ dbt curated/warehouse layerda SQL modeling uchun kerak:
 
 ---
 
-## 14. Prometheus Monitoring
+## 15. Prometheus Monitoring
 
 ### Nima qiladi
 
@@ -639,7 +693,7 @@ http://localhost:9095
 
 ---
 
-## 15. Keycloak IAM / SSO
+## 16. Keycloak IAM / SSO
 
 ### Hozirgi holati
 
@@ -661,7 +715,7 @@ Productionda quyidagilar uchun kerak:
 
 ---
 
-## 16. Export Service
+## 17. Export Service
 
 ### Hozirgi holati
 
@@ -693,8 +747,8 @@ Albatta productionga yaqin qilish uchun quyidagilar qo'shiladi:
 10. Next.js frontend alohida yaratildi.
 11. Next API proxy route lar yozildi.
 12. Stage cardlar icon va status bilan qilindi.
-13. Stage bosilganda deep inspector modal qo'shildi.
-14. Modalga before/after data, metrics, artifacts va raw JSON qo'shildi.
+13. Stage bosilganda o'ng deep inspector sidebar qo'shildi.
+14. Sidebarga before/after data, process, metrics, artifacts va raw JSON qo'shildi.
 15. Default active mode `api` qilindi.
 16. Next server 7777 portda network host bilan ishga tushirildi.
 17. README yangilandi.
@@ -708,6 +762,7 @@ Manual pipeline real ishlaydigan qismlar:
 - Kafka
 - MinIO Landing
 - MinIO Raw
+- Data Preparation va manual correction
 - Quality Check
 - Transform
 - Curated write
@@ -724,11 +779,11 @@ Manual run ichida hali bevosita trigger qilinmaydigan, lekin kod/asset sifatida 
 - Keycloak JWT enforcement
 - ELK log stack
 - CSV/PDF export endpoint
-## 17. Step Animation / Auto Modal
+## 18. Step Animation / Auto Sidebar
 
 ### Nima qo'shildi
 
-Pipeline run tugagandan keyin frontend real backend response ichidagi stage natijalarini sekin playback qiladi. Har bir real stage navbat bilan highlight bo'ladi va o'sha stage modali avtomatik ochiladi.
+Pipeline run tugagandan keyin frontend real backend response ichidagi stage natijalarini sekin playback qiladi. Har bir real stage navbat bilan highlight bo'ladi va o'ng inspector sidebar o'sha stage ma'lumotiga avtomatik o'tadi.
 
 ### Qanday ishlaydi
 
@@ -739,7 +794,7 @@ Pipeline run tugagandan keyin frontend real backend response ichidagi stage nati
 5. Har stage uchun 10 sekund vaqt beriladi.
 6. Current stage card `playing` class oladi.
 7. Oldin o'tgan stage card `visited` class oladi.
-8. `activeStage` avtomatik o'zgaradi va modal o'zi ochiladi.
+8. `activeStage` avtomatik o'zgaradi va o'ng sidebar kontenti almashadi.
 9. Replay tugmasi shu animatsiyani qayta ko'rsatadi.
 
 ### Kodlar
@@ -757,12 +812,12 @@ Pipeline run tugagandan keyin frontend real backend response ichidagi stage nati
   - `.playbackBadge`
   - `@keyframes stagePulse`
   - `@keyframes stageProgress`
-  - `@keyframes modalRise`
+  - `.stageSidebarPanel`
 
 ### Halol izoh
 
 Bu hozir backend streaming emas. Backend response bitta marta qaytadi, frontend esa shu real natijani foydalanuvchiga tushunarli qilish uchun step-by-step playback qiladi. Real-time streaming kerak bo'lsa keyingi bosqichda SSE yoki WebSocket endpoint qo'shiladi.
 
-## Modal Tavsiflari
+## Sidebar Tavsiflari
 
-Har bir stage modali Tavsif blokini ko'rsatadi: Nima qiladi, Data oqimi, Natija, Izoh.
+Har bir stage inspector sidebari Tavsif blokini ko'rsatadi: Nima qiladi, Data oqimi, Natija, Izoh.

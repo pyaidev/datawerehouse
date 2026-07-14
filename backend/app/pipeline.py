@@ -10,6 +10,7 @@ import httpx
 from .config import Settings
 from .databases import MetadataStore, WarehouseStore
 from .kafka_bus import EventBus
+from .preparation import prepare_rows
 from .quality import validate_rows
 from .schemas import PipelineRunRequest, PipelineRunResult, StageResult
 from .sources import get_source
@@ -34,7 +35,9 @@ class PipelineRunner:
         warnings: list[str] = []
         failed_stage: str | None = None
         raw_rows: list[dict[str, Any]] = []
+        prepared_rows: list[dict[str, Any]] = []
         curated_rows: list[dict[str, Any]] = []
+        preparation_profile: dict[str, Any] = {}
         quality_checks = []
         quality_score = 0
 
@@ -264,17 +267,65 @@ class PipelineRunner:
             },
         )
 
+        prepared_key = f"{request.source}/{run_id}/prepared.json"
+
+        async def prepare_data() -> str:
+            nonlocal prepared_rows, preparation_profile
+            prepared_rows, preparation_profile = prepare_rows(
+                raw_rows,
+                [correction.model_dump() for correction in request.corrections],
+            )
+            return self.object_store.put_json(
+                self.settings.minio_raw_bucket,
+                prepared_key,
+                prepared_rows,
+            )
+
+        await stage(
+            "preparation",
+            "Data preparation and manual corrections",
+            prepare_data,
+            input_ref=f"s3://{self.settings.minio_raw_bucket}/{raw_key}",
+            input_preview=sample_rows(raw_rows),
+            detail_builder=lambda result: {
+                "message": (
+                    f"prepared_rows={len(prepared_rows)}, "
+                    f"manual_corrections={preparation_profile.get('manual_corrections_applied', 0)}"
+                ),
+                "output_ref": result,
+                "output_preview": sample_rows(prepared_rows),
+                "metrics": {
+                    "input_rows": len(raw_rows),
+                    "output_rows": len(prepared_rows),
+                    "columns_profiled": preparation_profile.get("columns", 0),
+                    "trimmed_values": preparation_profile.get("trimmed_values", 0),
+                    "blank_to_null": preparation_profile.get("blank_to_null", 0),
+                    "manual_corrections_applied": preparation_profile.get("manual_corrections_applied", 0),
+                    "manual_corrections_rejected": preparation_profile.get("manual_corrections_rejected", 0),
+                },
+                "data_size_bytes": json_size(prepared_rows),
+                "data_format": "Prepared JSON rows",
+                "artifacts": {
+                    "module": "backend/app/preparation.py",
+                    "zone": "prepared",
+                    "bucket": self.settings.minio_raw_bucket,
+                    "key": prepared_key,
+                    "profile": preparation_profile,
+                },
+            },
+        )
+
         async def quality() -> str:
             nonlocal quality_score, quality_checks
-            quality_score, quality_checks = validate_rows(raw_rows)
+            quality_score, quality_checks = validate_rows(prepared_rows)
             return f"quality_score={quality_score}"
 
         await stage(
             "gx",
             "Great Expectations style validation",
             quality,
-            input_ref=f"s3://{self.settings.minio_raw_bucket}/{raw_key}",
-            input_preview=sample_rows(raw_rows),
+            input_ref=f"s3://{self.settings.minio_raw_bucket}/{prepared_key}",
+            input_preview=sample_rows(prepared_rows),
             detail_builder=lambda result: {
                 "message": result,
                 "output_ref": "quality://great-expectations-style-checks",
@@ -293,7 +344,7 @@ class PipelineRunner:
         async def transform() -> str:
             nonlocal curated_rows
             curated_rows = curate_rows(
-                raw_rows,
+                prepared_rows,
                 source_id=request.source,
                 source_title=source["title"],
                 mode=request.mode,
@@ -305,14 +356,14 @@ class PipelineRunner:
             "spark",
             "Spark/dbt compatible transform",
             transform,
-            input_ref=f"s3://{self.settings.minio_raw_bucket}/{raw_key}",
-            input_preview=sample_rows(raw_rows),
+            input_ref=f"s3://{self.settings.minio_raw_bucket}/{prepared_key}",
+            input_preview=sample_rows(prepared_rows),
             detail_builder=lambda result: {
                 "message": result,
                 "output_ref": "memory://curated_rows -> MinIO/ClickHouse",
                 "output_preview": sample_rows(curated_rows),
                 "metrics": {
-                    "input_rows": len(raw_rows),
+                    "input_rows": len(prepared_rows),
                     "output_rows": len(curated_rows),
                     "curated_fields": len(curated_rows[0].keys()) if curated_rows else 0,
                 },
@@ -421,8 +472,9 @@ class PipelineRunner:
             quality_checks=quality_checks,
             warnings=warnings,
             raw_preview=raw_rows[:10],
+            prepared_preview=prepared_rows[:10],
             curated_preview=curated_rows[:10],
-            lineage=build_lineage(raw_rows, curated_rows, request.source, run_id),
+            lineage=build_lineage(raw_rows, prepared_rows, curated_rows, request.source, run_id),
         )
 
 
@@ -461,12 +513,14 @@ def json_size(value: Any) -> int:
 
 def build_lineage(
     raw_rows: list[dict[str, Any]],
+    prepared_rows: list[dict[str, Any]],
     curated_rows: list[dict[str, Any]],
     source: str,
     run_id: str,
 ) -> list[dict[str, Any]]:
     lineage: list[dict[str, Any]] = []
     for index, raw in enumerate(raw_rows[:10]):
+        prepared = prepared_rows[index] if index < len(prepared_rows) else None
         curated = curated_rows[index] if index < len(curated_rows) else None
         source_id = raw.get("id", index)
         lineage.append(
@@ -474,6 +528,7 @@ def build_lineage(
                 "record_id": str(source_id),
                 "source": {"system": "DummyJSON", "entity": source, "id": source_id},
                 "raw": raw,
+                "prepared": prepared,
                 "curated": curated,
                 "warehouse": {
                     "database": "dwh",

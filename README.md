@@ -1,6 +1,6 @@
 # Data Warehouse Operations Console
 
-Real API bilan ishlaydigan Data Warehouse demo stack. Loyiha faqat UI maket emas: FastAPI pipeline tashqi test API dan data oladi, Kafka event chiqaradi, MinIO landing/raw/curated object yozadi, data quality check qiladi, curated model yaratadi, ClickHouse ga load qiladi va PostgreSQL ga audit yozadi. Next.js frontend har bir stage bosilganda input, process, output, metrics va artifacts/code tafsilotlarini modalda ko'rsatadi.
+Real API bilan ishlaydigan Data Warehouse demo stack. Loyiha faqat UI maket emas: FastAPI pipeline tashqi test API dan data oladi, Kafka event chiqaradi, MinIO landing/raw/prepared/curated object yozadi, manual correction va data quality check qiladi, curated model yaratadi, ClickHouse ga load qiladi va PostgreSQL ga audit yozadi. Next.js frontend har bir stage bosilganda input, process, output, metrics va artifacts/code tafsilotlarini o'ng inspector sidebarida ko'rsatadi.
 
 ## Stack
 
@@ -83,13 +83,14 @@ Invoke-RestMethod `
 2. Kafka ingestion event yozadi.
 3. MinIO Landing original payloadni saqlaydi.
 4. MinIO Raw normalized rows saqlaydi.
-5. Great Expectations style validation quality score chiqaradi.
-6. Transform layer curated schema yaratadi.
-7. Curated zone object yoziladi.
-8. ClickHouse `curated_events` jadvaliga analytic rows insert qilinadi.
-9. PostgreSQL `pipeline_runs` jadvaliga audit yoziladi.
+5. Data Preparation profiling, normalization va manual correction rule'larni qo'llab `prepared.json` yozadi.
+6. Great Expectations style validation prepared data uchun quality score chiqaradi.
+7. Transform layer curated schema yaratadi.
+8. Curated zone object yoziladi.
+9. ClickHouse `curated_events` jadvaliga analytic rows insert qilinadi.
+10. PostgreSQL `pipeline_runs` jadvaliga audit yoziladi.
 
-Frontend stage modalida shu ma'lumotlar ko'rinadi:
+Frontend stage inspector sidebarida shu ma'lumotlar ko'rinadi:
 
 - Oldin / Input
 - Process steps
@@ -108,7 +109,8 @@ Runner jarayonni faqat diagramma sifatida emas, real API response asosida ko'rsa
 - REAL EXECUTED, AVAILABLE, NOT CONNECTED statuslari;
 - repositorydagi haqiqiy FastAPI, Kafka, MinIO, quality, transform, ClickHouse, PostgreSQL, NiFi, Airflow va dbt kod previewlari;
 - Kafka, Great Expectations yoki ClickHouse bosqichida boshqariladigan TEST FAILURE va normal retry;
-- bitta record uchun Source -> Raw -> Curated -> ClickHouse lineage;
+- bitta record uchun Source -> Raw -> Prepared -> Curated -> ClickHouse lineage;
+- record va column bo'yicha manual correction queue, type coercion va qayta run;
 - run status, total duration, quality, warning va storage/database manzillari bilan final report.
 
 Test failure requestiga failure_stage maydoni beriladi. Qiymatlar: none, kafka, gx, clickhouse. Bu production xatosi emas, UI va retry oqimini ko'rsatish uchun nazoratli test rejimi.

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { HealthResponse, LineageRecord, PipelineResult, QualityCheck, SourcesResponse, StageResult } from "../lib/types";
+import type { HealthResponse, LineageRecord, ManualCorrection, PipelineResult, QualityCheck, SourcesResponse, StageResult } from "../lib/types";
 import { stageCodeSamples } from "../lib/stage-code";
 
 import type { CSSProperties } from "react";
 
 type Mode = "batch" | "stream" | "api";
-type View = "raw" | "curated";
+type View = "raw" | "prepared" | "curated";
 type FailureStage = "none" | "kafka" | "gx" | "clickhouse";
 
 type StageMeta = {
@@ -77,6 +77,7 @@ const stageCatalog: StageMeta[] = [
   { id: "kafka", label: "Apache Kafka", layer: "Stream", detail: "Ingestion event topicga yoziladi", icon: "stream", color: "#252b36" },
   { id: "landing", label: "MinIO Landing", layer: "Object", detail: "Original payload landing bucketga yoziladi", icon: "bucket", color: "#2e8b57" },
   { id: "raw", label: "MinIO Raw", layer: "Lake", detail: "Normalized raw rows saqlanadi", icon: "database", color: "#0f766e" },
+  { id: "preparation", label: "Data Preparation", layer: "Prepare", detail: "Profiling, normalize va qo'lda tuzatishlar", icon: "workflow", color: "#0e7490" },
   { id: "gx", label: "Great Expectations", layer: "Quality", detail: "Record, schema va null check", icon: "shield", color: "#16a34a" },
   { id: "spark", label: "PySpark", layer: "Compute", detail: "Curated transform job", icon: "spark", color: "#f97316" },
   { id: "curated", label: "Curated Zone", layer: "Model", detail: "Business schema saqlanadi", icon: "layers", color: "#7c3aed" },
@@ -91,27 +92,28 @@ const stageCatalog: StageMeta[] = [
   { id: "export", label: "Export", layer: "File", detail: "JSON/CSV/PDF export", icon: "download", color: "#6366f1" },
 ];
 
-const SCENARIO_WIDTH = 1060;
-const SCENARIO_HEIGHT = 680;
+const SCENARIO_WIDTH = 1280;
+const SCENARIO_HEIGHT = 700;
 
 const scenarioNodes: ScenarioNode[] = [
-  { id: "fastapi", x: 70, y: 230 },
-  { id: "nifi", x: 200, y: 230 },
-  { id: "kafka", x: 330, y: 230 },
-  { id: "landing", x: 460, y: 230 },
-  { id: "raw", x: 590, y: 230 },
-  { id: "gx", x: 720, y: 230 },
-  { id: "spark", x: 850, y: 230 },
-  { id: "curated", x: 980, y: 230 },
-  { id: "dbt", x: 980, y: 430 },
-  { id: "clickhouse", x: 850, y: 430 },
-  { id: "superset", x: 700, y: 355 },
-  { id: "trino", x: 700, y: 505 },
-  { id: "api", x: 530, y: 430 },
-  { id: "portal", x: 360, y: 350 },
-  { id: "export", x: 360, y: 510 },
-  { id: "postgres", x: 980, y: 570 },
-  { id: "airflow", x: 720, y: 65 },
+  { id: "fastapi", x: 85, y: 240 },
+  { id: "nifi", x: 220, y: 240 },
+  { id: "kafka", x: 355, y: 240 },
+  { id: "landing", x: 490, y: 240 },
+  { id: "raw", x: 625, y: 240 },
+  { id: "preparation", x: 760, y: 240 },
+  { id: "gx", x: 895, y: 240 },
+  { id: "spark", x: 1030, y: 240 },
+  { id: "curated", x: 1165, y: 240 },
+  { id: "dbt", x: 1165, y: 450 },
+  { id: "clickhouse", x: 1015, y: 450 },
+  { id: "superset", x: 835, y: 375 },
+  { id: "trino", x: 835, y: 535 },
+  { id: "api", x: 640, y: 455 },
+  { id: "portal", x: 440, y: 370 },
+  { id: "export", x: 440, y: 540 },
+  { id: "postgres", x: 1165, y: 610 },
+  { id: "airflow", x: 900, y: 70 },
 ];
 
 const scenarioEdges: ScenarioEdge[] = [
@@ -119,7 +121,8 @@ const scenarioEdges: ScenarioEdge[] = [
   { from: "nifi", to: "kafka" },
   { from: "kafka", to: "landing" },
   { from: "landing", to: "raw" },
-  { from: "raw", to: "gx" },
+  { from: "raw", to: "preparation" },
+  { from: "preparation", to: "gx" },
   { from: "gx", to: "spark" },
   { from: "spark", to: "curated" },
   { from: "curated", to: "dbt" },
@@ -129,7 +132,7 @@ const scenarioEdges: ScenarioEdge[] = [
   { from: "clickhouse", to: "api", kind: "branch" },
   { from: "api", to: "portal", kind: "branch" },
   { from: "api", to: "export", kind: "branch" },
-  { from: "curated", to: "postgres", kind: "branch" },
+  { from: "clickhouse", to: "postgres", kind: "branch" },
   { from: "airflow", to: "spark", kind: "control" },
 ];
 
@@ -139,6 +142,7 @@ const processMap: Record<string, string[]> = {
   kafka: ["Build event", "Serialize JSON", "Publish to dwh.ingestion.events"],
   landing: ["Build object key", "Write landing JSON", "Return S3 reference"],
   raw: ["Normalize collection", "Write raw rows", "Catalog raw object"],
+  preparation: ["Profile columns and types", "Trim and normalize nulls", "Apply manual corrections", "Write prepared version"],
   gx: ["Record count", "Primary key", "Schema and null threshold"],
   spark: ["Read raw", "Transform dataframe", "Write curated model"],
   curated: ["Business mapping", "Conformed columns", "Write curated JSON"],
@@ -181,9 +185,15 @@ const stageDescriptions: Record<string, StageDescription> = {
     flow: "Landing payloaddan products/users/carts kabi collection olinadi va raw-zone ichiga raw.json qilib yoziladi.",
     result: "Keyingi validation va transform uchun normalized raw rows tayyor bo'ladi.",
   },
+  preparation: {
+    does: "Raw datani DWH ga yuborishdan oldin profil qiladi, string va bo'sh qiymatlarni normalize qiladi hamda operator kiritgan qo'lda tuzatishlarni qo'llaydi.",
+    flow: "Raw rowlar o'zgarmas nusxa sifatida qoladi. Correction rule record_id va column bo'yicha tekshiriladi, qiymat original typega moslashtiriladi va prepared.json versiyasi yoziladi.",
+    result: "Prepared preview, column profile, applied/rejected correction auditi va MinIO path hosil bo'ladi. Quality va transform faqat shu versiyadan davom etadi.",
+    note: "Qo'lda tuzatish raw objectni o'zgartirmaydi; yangi pipeline run ichida versionlangan prepared object yaratiladi.",
+  },
   gx: {
-    does: "Raw data sifatini tekshiradi: record count, id mavjudligi, schema bo'sh emasligi va null threshold.",
-    flow: "Raw rows validatorga beriladi, har bir quality rule pass/fail natija qaytaradi.",
+    does: "Prepared data sifatini tekshiradi: record count, id mavjudligi, schema bo'sh emasligi va null threshold.",
+    flow: "Prepared rows validatorga beriladi, har bir quality rule pass/fail natija qaytaradi.",
     result: "Quality score va checks list hosil bo'ladi; UI dagi Quality panel shu natijani ko'rsatadi.",
   },
   spark: {
@@ -237,7 +247,7 @@ const stageDescriptions: Record<string, StageDescription> = {
     result: "OpenAPI docs va API contract orqali integratsiya qilish mumkin bo'ladi.",
   },
   portal: {
-    does: "Hozirgi Next.js web interfeysni bildiradi: pipeline run, status, preview, logs va modal inspector.",
+    does: "Hozirgi Next.js web interfeysni bildiradi: pipeline run, status, preview, logs va o'ng stage inspector sidebar.",
     flow: "Browser Next.js appga ulanadi, Next API proxy backend bilan gaplashadi va response state sifatida render qilinadi.",
     result: "Foydalanuvchi har bir stepda nima bo'lganini UI orqali ko'radi.",
   },
@@ -265,6 +275,12 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   kafka: { artifacts: { topic: "dwh.ingestion.events", code: "backend/app/kafka_bus.py" } },
   landing: { artifacts: { storage: "MinIO", console: "http://localhost:9001", bucket: "landing-zone" } },
   raw: { artifacts: { storage: "MinIO", console: "http://localhost:9001", bucket: "raw-zone" } },
+  preparation: {
+    input_ref: "MinIO raw-zone/{source}/{run_id}/raw.json",
+    output_ref: "MinIO raw-zone/{source}/{run_id}/prepared.json",
+    input_preview: { operation: "profile + normalize + manual correction rules" },
+    artifacts: { module: "backend/app/preparation.py", persisted_object: "prepared.json", raw_immutable: true },
+  },
   gx: { artifacts: { validator: "backend/app/quality.py", checks: ["record_count", "primary_key", "schema_not_empty", "null_threshold"] } },
   spark: { artifacts: { pyspark_job: "spark/jobs/dummyjson_curate.py", runtime_transform: "backend/app/transform.py" } },
   curated: { artifacts: { storage: "MinIO raw-zone/curated", format: "json/parquet-compatible schema" } },
@@ -319,6 +335,26 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
 };
 
 const PLAYBACK_STEP_MS = 10000;
+const PLAYBACK_ORDER = [
+  "fastapi",
+  "nifi",
+  "kafka",
+  "landing",
+  "raw",
+  "preparation",
+  "gx",
+  "airflow",
+  "spark",
+  "curated",
+  "dbt",
+  "clickhouse",
+  "postgres",
+  "superset",
+  "trino",
+  "api",
+  "portal",
+  "export",
+];
 
 export function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -328,10 +364,11 @@ export function Dashboard() {
   const [limit, setLimit] = useState(20);
   const [failureStage, setFailureStage] = useState<FailureStage>("none");
   const [view, setView] = useState<View>("curated");
+  const [corrections, setCorrections] = useState<ManualCorrection[]>([]);
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
-  const [activeStage, setActiveStage] = useState<StageMeta | null>(null);
+  const [activeStage, setActiveStage] = useState<StageMeta | null>(stageCatalog[0]);
   const [error, setError] = useState<string | null>(null);
   const [frontendHost, setFrontendHost] = useState("loading");
   const [playbackStageId, setPlaybackStageId] = useState<string | null>(null);
@@ -351,12 +388,15 @@ export function Dashboard() {
     return map;
   }, [result]);
 
-  const rows = view === "raw" ? result?.raw_preview || [] : result?.curated_preview || [];
+  const rows = view === "raw"
+    ? result?.raw_preview || []
+    : view === "prepared"
+      ? result?.prepared_preview || []
+      : result?.curated_preview || [];
   const columns = getColumns(rows, view);
   const qualityChecks = result?.quality_checks || [];
   const activeStageResult = activeStage ? stageResults.get(activeStage.id) : undefined;
-  const activeStaticDetail = activeStage ? staticStageDetails[activeStage.id] : undefined;
-  const playbackTotal = result?.stages.length ?? 0;
+  const playbackTotal = result ? getPlaybackStages(result).length : 0;
   const playbackPosition = playbackStageId ? visitedStageIds.indexOf(playbackStageId) + 1 : visitedStageIds.length;
 
   async function loadInitial() {
@@ -384,13 +424,13 @@ export function Dashboard() {
     setActiveStage(null);
     setResult(null);
     setLogs([]);
-    addLog(`POST /api/backend/pipeline/run source=${source} limit=${limit} mode=${mode} failure_stage=${requestedFailure}`);
+    addLog(`POST /api/backend/pipeline/run source=${source} limit=${limit} mode=${mode} failure_stage=${requestedFailure} corrections=${corrections.length}`);
 
     try {
       const nextResult = await fetchJson<PipelineResult>("/api/backend/pipeline/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ source, limit, mode, failure_stage: requestedFailure }),
+        body: JSON.stringify({ source, limit, mode, failure_stage: requestedFailure, corrections }),
       });
       setResult(nextResult);
       addLog(`run_id=${nextResult.run_id}`);
@@ -414,6 +454,22 @@ export function Dashboard() {
     void runPipeline("none");
   }
 
+  function addCorrection(correction: ManualCorrection) {
+    setCorrections((current) => [
+      ...current.filter((item) => item.record_id !== correction.record_id || item.column !== correction.column),
+      correction,
+    ]);
+  }
+
+  function removeCorrection(recordId: string, column: string) {
+    setCorrections((current) => current.filter((item) => item.record_id !== recordId || item.column !== column));
+  }
+
+  function applyCorrections() {
+    setFailureStage("none");
+    void runPipeline("none");
+  }
+
   function clearPlaybackTimers() {
     playbackTimers.current.forEach((timer) => clearTimeout(timer));
     playbackTimers.current = [];
@@ -421,9 +477,7 @@ export function Dashboard() {
 
   function startStagePlayback(nextResult: PipelineResult) {
     clearPlaybackTimers();
-    const playableStages = nextResult.stages
-      .map((resultStage) => stageCatalog.find((stage) => stage.id === resultStage.id))
-      .filter((stage): stage is StageMeta => Boolean(stage));
+    const playableStages = getPlaybackStages(nextResult);
 
     setPlaybackStageId(null);
     setVisitedStageIds([]);
@@ -480,7 +534,14 @@ export function Dashboard() {
         <div className="runnerControls">
           <label className="sourceControl">
             <span>Source</span>
-            <select value={source} onChange={(event) => setSource(event.target.value)} disabled={running}>
+            <select
+              value={source}
+              onChange={(event) => {
+                setSource(event.target.value);
+                setCorrections([]);
+              }}
+              disabled={running}
+            >
               {Object.entries(sources).map(([key, item]) => (
                 <option key={key} value={key}>{item.title} / {item.collection}</option>
               ))}
@@ -543,6 +604,12 @@ export function Dashboard() {
         </article>
 
         <aside className="runSidebar">
+          <StageSidePanel
+            stage={activeStage}
+            result={activeStageResult}
+            active={Boolean(activeStage && playbackStageId === activeStage.id)}
+          />
+
           <section className="panel summaryPanel">
             <div className="panelHead compact">
               <div>
@@ -606,15 +673,28 @@ export function Dashboard() {
         </section>
       )}
 
+      <PreparationWorkbench
+        rawRows={result?.raw_preview ?? []}
+        preparedRows={result?.prepared_preview ?? []}
+        corrections={corrections}
+        preparationStage={stageResults.get("preparation")}
+        running={running}
+        playbackRunning={playbackRunning}
+        onAdd={addCorrection}
+        onRemove={removeCorrection}
+        onApply={applyCorrections}
+      />
+
       <section className="dataGrid">
         <article className="panel tablePanel">
           <div className="panelHead">
             <div>
               <p>Preview</p>
-              <h2>{view === "raw" ? "Raw data" : "Curated data"}</h2>
+              <h2>{view === "raw" ? "Raw data" : view === "prepared" ? "Prepared data" : "Curated data"}</h2>
             </div>
             <div className="tabs">
               <button className={view === "raw" ? "active" : ""} onClick={() => setView("raw")}><Icon name="database" /> Raw</button>
+              <button className={view === "prepared" ? "active" : ""} onClick={() => setView("prepared")}><Icon name="workflow" /> Prepared</button>
               <button className={view === "curated" ? "active" : ""} onClick={() => setView("curated")}><Icon name="layers" /> Curated</button>
             </div>
           </div>
@@ -645,24 +725,6 @@ export function Dashboard() {
 
       {result?.lineage.length ? <LineageExplorer records={result.lineage} /> : null}
 
-      {activeStage && (
-        <div className={`modalBackdrop ${playbackRunning ? "playbackOpen" : ""}`} onClick={() => setActiveStage(null)}>
-          <section className="modal wide" onClick={(event) => event.stopPropagation()}>
-            <div className="modalHead">
-              <span className="modalIcon"><Icon name={activeStage.icon} /></span>
-              <div>
-                <p>{activeStage.layer}</p>
-                <h2>{activeStage.label}</h2>
-              </div>
-              <button className="iconButton" onClick={() => setActiveStage(null)} aria-label="Modalni yopish" title="Yopish"><Icon name="close" /></button>
-            </div>
-            <p className="modalDetail">{activeStage.detail}</p>
-            <StageDescriptionBlock stage={activeStage} />
-            <StageRunState stage={activeStage} result={activeStageResult} />
-            <StageInspector stage={activeStage} result={activeStageResult} fallback={activeStaticDetail} />
-          </section>
-        </div>
-      )}
     </main>
   );
 
@@ -679,6 +741,150 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(`${response.status}: ${text}`);
   }
   return response.json() as Promise<T>;
+}
+
+function PreparationWorkbench({
+  rawRows,
+  preparedRows,
+  corrections,
+  preparationStage,
+  running,
+  playbackRunning,
+  onAdd,
+  onRemove,
+  onApply,
+}: {
+  rawRows: Record<string, unknown>[];
+  preparedRows: Record<string, unknown>[];
+  corrections: ManualCorrection[];
+  preparationStage?: StageResult;
+  running: boolean;
+  playbackRunning: boolean;
+  onAdd: (correction: ManualCorrection) => void;
+  onRemove: (recordId: string, column: string) => void;
+  onApply: () => void;
+}) {
+  const [recordId, setRecordId] = useState(String(rawRows[0]?.id ?? ""));
+  const [column, setColumn] = useState("");
+  const [newValue, setNewValue] = useState("");
+
+  useEffect(() => {
+    if (!rawRows.some((row) => String(row.id) === recordId)) {
+      setRecordId(String(rawRows[0]?.id ?? ""));
+    }
+  }, [rawRows, recordId]);
+
+  const selectedRaw = rawRows.find((row) => String(row.id) === recordId) ?? rawRows[0];
+  const editableColumns = selectedRaw ? Object.keys(selectedRaw).filter((key) => key !== "id") : [];
+  const activeColumn = editableColumns.includes(column) ? column : editableColumns[0] ?? "";
+  const selectedPrepared = preparedRows.find((row) => String(row.id) === recordId);
+  const metrics = preparationStage?.metrics ?? {};
+
+  function queueCorrection() {
+    if (!recordId || !activeColumn) return;
+    onAdd({ record_id: recordId, column: activeColumn, value: newValue });
+    setColumn(activeColumn);
+    setNewValue("");
+  }
+
+  return (
+    <section className="panel preparationPanel">
+      <div className="panelHead">
+        <div>
+          <p>Pre-DWH workbench</p>
+          <h2>Data Preparation va qo'lda tuzatish</h2>
+        </div>
+        <span className={["preparationStatus", preparationStage?.status ?? "queued"].join(" ")}>
+          {preparationStage ? "REAL EXECUTED" : "INPUT KUTILMOQDA"}
+        </span>
+      </div>
+      <div className="preparationBody">
+        <section className="correctionEditor">
+          <div className="preparationSectionTitle"><Icon name="workflow" /><strong>Correction rule</strong></div>
+          <div className="correctionForm">
+            <label>
+              <span>Record</span>
+              <select value={recordId} onChange={(event) => setRecordId(event.target.value)}>
+                {rawRows.map((row, index) => {
+                  const id = String(row.id ?? index);
+                  return <option key={id} value={id}>ID {id}</option>;
+                })}
+              </select>
+            </label>
+            <label>
+              <span>Column</span>
+              <select value={activeColumn} onChange={(event) => setColumn(event.target.value)}>
+                {editableColumns.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <div className="currentValue">
+              <span>Raw value</span>
+              <code>{formatCell(selectedRaw?.[activeColumn]) || "NULL"}</code>
+            </div>
+            <label>
+              <span>Yangi qiymat</span>
+              <input value={newValue} onChange={(event) => setNewValue(event.target.value)} placeholder="Bo'sh qiymat = NULL" />
+            </label>
+            <button className="queueCorrectionButton" type="button" onClick={queueCorrection} disabled={!recordId || !activeColumn || running}>
+              <Icon name="check" /> Rule qo'shish
+            </button>
+          </div>
+          <div className="valueComparison">
+            <span>Prepared value</span>
+            <code>{formatCell(selectedPrepared?.[activeColumn]) || "NULL"}</code>
+          </div>
+        </section>
+
+        <section className="correctionQueue">
+          <div className="preparationSectionTitle">
+            <Icon name="layers" />
+            <strong>Correction queue</strong>
+            <span>{corrections.length}</span>
+          </div>
+          <div className="correctionList">
+            {corrections.length ? corrections.map((item) => (
+              <div className="correctionItem" key={item.record_id + ":" + item.column}>
+                <span><strong>ID {item.record_id}</strong><code>{item.column}</code></span>
+                <em>{formatCell(item.value) || "NULL"}</em>
+                <button
+                  type="button"
+                  className="iconButton"
+                  onClick={() => onRemove(item.record_id, item.column)}
+                  aria-label="Correction rule ni o'chirish"
+                  title="Rule ni o'chirish"
+                  disabled={running}
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+            )) : <div className="correctionEmpty">Manual correction yo'q.</div>}
+          </div>
+          <button
+            className="applyCorrectionsButton"
+            type="button"
+            onClick={onApply}
+            disabled={!corrections.length || running || playbackRunning}
+          >
+            <Icon name={running ? "refresh" : "play"} />
+            {running ? "Prepared run ishlayapti" : "Qo'llash va pipeline'ni qayta ishlatish"}
+          </button>
+        </section>
+
+        <section className="preparationAudit">
+          <div className="preparationSectionTitle"><Icon name="chart" /><strong>Preparation audit</strong></div>
+          <div className="preparationMetrics">
+            <ReportValue label="Rows" value={String(metrics.output_rows ?? preparedRows.length)} />
+            <ReportValue label="Columns" value={String(metrics.columns_profiled ?? 0)} />
+            <ReportValue label="Trimmed" value={String(metrics.trimmed_values ?? 0)} />
+            <ReportValue label="Blank to NULL" value={String(metrics.blank_to_null ?? 0)} />
+            <ReportValue label="Applied" value={String(metrics.manual_corrections_applied ?? 0)} />
+            <ReportValue label="Rejected" value={String(metrics.manual_corrections_rejected ?? 0)} />
+          </div>
+          <code className="preparedPath">{preparationStage?.output_ref ?? "prepared.json kutilmoqda"}</code>
+        </section>
+      </div>
+    </section>
+  );
 }
 
 function ExecutionTimeline({
@@ -837,12 +1043,15 @@ function LineageExplorer({ records }: { records: LineageRecord[] }) {
         <span className="lineageArrow"><Icon name="route" /></span>
         <LineageNode index="02" title="Raw Zone" state="raw" data={selected.raw} />
         <span className="lineageArrow"><Icon name="route" /></span>
-        <LineageNode index="03" title="Curated" state={selected.curated ? "curated" : "missing"} data={selected.curated} />
+        <LineageNode index="03" title="Prepared" state={selected.prepared ? "prepared" : "missing"} data={selected.prepared} />
         <span className="lineageArrow"><Icon name="route" /></span>
-        <LineageNode index="04" title="ClickHouse" state={selected.warehouse ? "warehouse" : "missing"} data={selected.warehouse} />
+        <LineageNode index="04" title="Curated" state={selected.curated ? "curated" : "missing"} data={selected.curated} />
+        <span className="lineageArrow"><Icon name="route" /></span>
+        <LineageNode index="05" title="ClickHouse" state={selected.warehouse ? "warehouse" : "missing"} data={selected.warehouse} />
       </div>
       <div className="lineageDiff">
-        <DataDiffView input={selected.raw} output={selected.curated} title="Raw → Curated field lineage" />
+        <DataDiffView input={selected.raw} output={selected.prepared} title="Raw to Prepared correction lineage" />
+        <DataDiffView input={selected.prepared} output={selected.curated} title="Prepared to Curated transform lineage" />
       </div>
     </section>
   );
@@ -949,14 +1158,19 @@ function ScenarioCanvas({
           const isVisited = visitedStageIds.includes(stage.id);
           const isPlaying = playbackStageId === stage.id;
           const codeStatus = stageCodeSamples[stage.id]?.status;
+          const playbackOrder = PLAYBACK_ORDER.indexOf(stage.id) + 1;
           let visualState = codeStatus === "not_connected" ? "notConnected" : "available";
           let stateLabel = codeStatus === "not_connected" ? "NOT CONNECTED" : "AVAILABLE";
 
-          if (stageResult) {
-            if (isPlaying) {
-              visualState = "playing";
-              stateLabel = "RUNNING 10s";
-            } else if (playbackStarted && !isVisited) {
+          if (isPlaying) {
+            visualState = "playing";
+            stateLabel = stageResult
+              ? "RUNNING 10s"
+              : codeStatus === "not_connected"
+                ? "NOT CONNECTED"
+                : "AVAILABLE 10s";
+          } else if (stageResult) {
+            if (playbackStarted && !isVisited) {
               visualState = "queued";
               stateLabel = "QUEUED";
             } else {
@@ -984,7 +1198,7 @@ function ScenarioCanvas({
               onClick={() => onSelect(stage)}
               title={stage.detail}
             >
-              <span className="nodeOrder">{index + 1}</span>
+              <span className="nodeOrder">{playbackOrder || index + 1}</span>
               <span className="moduleOrb">
                 <Icon name={stage.icon} />
                 <i className="nodeStateDot" />
@@ -1017,6 +1231,86 @@ function scenarioPath(from: ScenarioNode, to: ScenarioNode): string {
   return "M " + from.x + " " + from.y + " C " + (from.x + curve * direction) + " " + from.y + ", " + (to.x - curve * direction) + " " + to.y + ", " + to.x + " " + to.y;
 }
 
+function StageSidePanel({
+  stage,
+  result,
+  active,
+}: {
+  stage: StageMeta | null;
+  result?: StageResult;
+  active: boolean;
+}) {
+  if (!stage) {
+    return (
+      <section className="panel stageSidebarPanel">
+        <div className="stageSidebarEmpty">Tekshirish uchun stage tanlang.</div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel stageSidebarPanel">
+      <div className="panelHead compact stageSidebarHead">
+        <span className="stageSidebarIcon" style={{ background: stage.color }}><Icon name={stage.icon} /></span>
+        <div>
+          <p>{stage.layer} stage</p>
+          <h2>{stage.label}</h2>
+        </div>
+        <span className={["stageSidebarLive", active ? "active" : ""].join(" ")}>{active ? "RUNNING" : "SELECTED"}</span>
+      </div>
+      <div className="stageSidebarScroll">
+        <p className="stageSidebarDetail">{stage.detail}</p>
+        <StageRunState stage={stage} result={result} />
+        <StageProcessSidebar stage={stage} result={result} active={active} />
+        <StageDescriptionBlock stage={stage} />
+        <StageInspector stage={stage} result={result} fallback={staticStageDetails[stage.id]} />
+      </div>
+    </section>
+  );
+}
+
+function StageProcessSidebar({
+  stage,
+  result,
+  active,
+}: {
+  stage: StageMeta;
+  result?: StageResult;
+  active: boolean;
+}) {
+  const processes = processMap[stage.id] ?? [];
+  const fallbackStatus = stageCodeSamples[stage.id]?.status === "not_connected" ? "NOT CONNECTED" : "AVAILABLE";
+  const status = result
+    ? result.status === "done" ? "REAL EXECUTED" : result.status === "error" ? "ERROR" : "WARNING"
+    : fallbackStatus;
+
+  return (
+    <aside className={["stageProcessSidebar", active ? "active" : ""].join(" ")}>
+      <header>
+        <div><Icon name="workflow" /><span>Process</span></div>
+        <strong>{status}</strong>
+      </header>
+      <ol>
+        {processes.map((process, index) => (
+          <li key={process} style={{ "--process-index": index } as CSSProperties}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div>
+              <strong>{process}</strong>
+              <small>{result ? result.status : "asset"}</small>
+            </div>
+            <i />
+          </li>
+        ))}
+      </ol>
+      <footer>
+        <span>Duration</span>
+        <strong>{result ? formatDuration(result.duration_ms) : "-"}</strong>
+        <span>Output</span>
+        <code>{result?.output_ref ?? "not executed"}</code>
+      </footer>
+    </aside>
+  );
+}
 
 function StageDescriptionBlock({ stage }: { stage: StageMeta }) {
   const description = stageDescriptions[stage.id];
@@ -1083,8 +1377,6 @@ function StageInspector({ stage, result, fallback }: { stage: StageMeta; result?
     <div className="inspector">
       <div className="deepGrid">
         <TransformationFlow
-          stage={stage}
-          status={result?.status}
           inputRef={inputRef}
           outputRef={outputRef}
           input={inputPreview}
@@ -1101,15 +1393,11 @@ function StageInspector({ stage, result, fallback }: { stage: StageMeta; result?
 }
 
 function TransformationFlow({
-  stage,
-  status,
   inputRef,
   outputRef,
   input,
   output,
 }: {
-  stage: StageMeta;
-  status?: StageResult["status"];
   inputRef?: string | null;
   outputRef?: string | null;
   input?: unknown;
@@ -1117,7 +1405,7 @@ function TransformationFlow({
 }) {
   return (
     <article className="detailCard wide transformationCard">
-      <div className="detailTitle"><Icon name="workflow" /><strong>Input → Process → Output</strong></div>
+      <div className="detailTitle"><Icon name="workflow" /><strong>Input to Output</strong></div>
       <div className="transformationFlow">
         <section className="flowColumn input">
           <header><span>01</span><strong>Oldin / Input</strong></header>
@@ -1125,21 +1413,8 @@ function TransformationFlow({
           <JsonBlock value={input} />
         </section>
         <span className="flowArrow"><Icon name="route" /></span>
-        <section className="flowColumn process">
-          <header><span>02</span><strong>Process</strong></header>
-          <div className="processList compactList">
-            {(processMap[stage.id] || []).map((process, index) => (
-              <div key={process} className="processItem">
-                <span>{index + 1}</span>
-                <strong>{process}</strong>
-                <em>{status || "asset"}</em>
-              </div>
-            ))}
-          </div>
-        </section>
-        <span className="flowArrow"><Icon name="route" /></span>
         <section className="flowColumn output">
-          <header><span>03</span><strong>Keyin / Output</strong></header>
+          <header><span>02</span><strong>Keyin / Output</strong></header>
           {outputRef && <code className="refLine">{outputRef}</code>}
           <JsonBlock value={output} />
         </section>
@@ -1340,6 +1615,14 @@ function formatDuration(durationMs: number): string {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function getPlaybackStages(result: PipelineResult): StageMeta[] {
+  const failureIndex = result.failed_stage ? PLAYBACK_ORDER.indexOf(result.failed_stage) : -1;
+  const allowedIds = failureIndex >= 0 ? PLAYBACK_ORDER.slice(0, failureIndex + 1) : PLAYBACK_ORDER;
+  return allowedIds
+    .map((stageId) => stageCatalog.find((stage) => stage.id === stageId))
+    .filter((stage): stage is StageMeta => Boolean(stage));
 }
 
 function getColumns(rows: Record<string, unknown>[], view: View): string[] {

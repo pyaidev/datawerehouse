@@ -58,6 +58,24 @@ export const stageCodeSamples: Record<string, StageCodeSample> = {
   },
   landing: { file: "backend/app/storage.py", language: "python", status: "real", code: storageCode },
   raw: { file: "backend/app/storage.py", language: "python", status: "real", code: storageCode },
+  preparation: {
+    file: "backend/app/preparation.py",
+    language: "python",
+    status: "real",
+    code: [
+      "prepared = deepcopy(rows)",
+      "for row in prepared:",
+      "    for column, value in list(row.items()):",
+      "        if isinstance(value, str):",
+      "            row[column] = value.strip() or None",
+      "",
+      "for correction in corrections:",
+      "    target = rows_by_id.get(str(correction[\"record_id\"]))",
+      "    target[correction[\"column\"]] = coerce_value(",
+      "        correction.get(\"value\"), target.get(correction[\"column\"])",
+      "    )",
+    ].join("\n"),
+  },
   gx: {
     file: "backend/app/quality.py",
     language: "python",
@@ -179,7 +197,7 @@ export const stageCodeSamples: Record<string, StageCodeSample> = {
     code: [
       "const nextResult = await fetchJson<PipelineResult>(",
       "  \"/api/backend/pipeline/run\",",
-      "  { method: \"POST\", body: JSON.stringify({ source, limit, mode, failure_stage }) },",
+      "  { method: \"POST\", body: JSON.stringify({ source, limit, mode, failure_stage, corrections }) },",
       ");",
       "setResult(nextResult);",
       "startStagePlayback(nextResult);",

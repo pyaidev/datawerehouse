@@ -2,11 +2,18 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
+class ManualCorrection(BaseModel):
+    record_id: str
+    column: str = Field(min_length=1)
+    value: Any = None
+
+
 class PipelineRunRequest(BaseModel):
     source: str = Field(default="products", description="DummyJSON source id")
     limit: int = Field(default=20, ge=1, le=100)
     mode: Literal["batch", "stream", "api"] = "batch"
     failure_stage: Literal["none", "kafka", "gx", "clickhouse"] = "none"
+    corrections: list[ManualCorrection] = Field(default_factory=list)
 
 
 class QualityCheck(BaseModel):
@@ -51,5 +58,6 @@ class PipelineRunResult(BaseModel):
     quality_checks: list[QualityCheck]
     warnings: list[str]
     raw_preview: list[dict[str, Any]]
+    prepared_preview: list[dict[str, Any]]
     curated_preview: list[dict[str, Any]]
     lineage: list[dict[str, Any]]
