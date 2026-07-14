@@ -15,6 +15,10 @@ Real API bilan ishlaydigan Data Warehouse demo stack. Loyiha faqat UI maket emas
 - Orchestration assets: Airflow DAG, NiFi setup script, dbt models
 - Monitoring: Prometheus config
 
+## Documentation
+
+- [STEP_DETAILS.md](STEP_DETAILS.md) - har bir Data Warehouse stepida nima bajarilishi, input/output, kodlar va tekshiruvlar.
+
 ## Quick Start
 
 Backend stackni ko'tarish:
