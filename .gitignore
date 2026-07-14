@@ -1,0 +1,41 @@
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+!frontend/.env.local.example
+frontend/.env.local
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js build/cache
+.next/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+
+# Python cache and virtualenvs
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Runtime data and generated artifacts
+data/
+logs/
+*.log
+*.tmp
+
+# Docker/local state
+.docker/
+*.pid
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

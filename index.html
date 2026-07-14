@@ -1,0 +1,210 @@
+﻿<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Warehouse Operations Console</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div>
+            <p>UZSTAT Data Platform</p>
+            <h1>Warehouse Operations Console</h1>
+          </div>
+        </div>
+
+        <div class="run-controls" aria-label="Pipeline controls">
+          <label class="field source-field">
+            <span>Source</span>
+            <select id="sourceSelect"></select>
+          </label>
+          <label class="field limit-field">
+            <span>Limit</span>
+            <input id="limitInput" type="number" min="5" max="50" step="5" value="20" />
+          </label>
+          <button class="button secondary" id="refreshBtn" type="button">Refresh</button>
+          <button class="button primary" id="runBtn" type="button">Run Pipeline</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="source-rail" aria-label="Data sources">
+          <div class="rail-title">
+            <span>1</span>
+            <div>
+              <h2>Ma'lumot manbalari</h2>
+              <p>API, fayl va batch oqimlari</p>
+            </div>
+          </div>
+          <div class="source-list" id="sourceList"></div>
+        </aside>
+
+        <section class="workbench">
+          <section class="process-board" aria-label="Data warehouse pipeline">
+            <div class="board-head">
+              <div>
+                <p class="eyebrow">Live test API</p>
+                <h2>Ma'lumot manbasi -> DWH -> Taqdim etish</h2>
+              </div>
+              <div class="endpoint" id="endpointInput"></div>
+            </div>
+
+            <div class="mode-switch" aria-label="Integration mode">
+              <button class="mode active" data-mode="batch" type="button">Batch</button>
+              <button class="mode" data-mode="stream" type="button">Near real-time</button>
+              <button class="mode" data-mode="api" type="button">API integration</button>
+            </div>
+
+            <div class="flow" id="flowRows"></div>
+          </section>
+
+          <section class="metric-strip" aria-label="Pipeline metrics">
+            <article class="metric">
+              <span>Records</span>
+              <strong id="recordsMetric">0</strong>
+            </article>
+            <article class="metric">
+              <span>Quality</span>
+              <strong id="qualityMetric">0%</strong>
+            </article>
+            <article class="metric">
+              <span>Latency</span>
+              <strong id="latencyMetric">0 ms</strong>
+            </article>
+            <article class="metric">
+              <span>Curated fields</span>
+              <strong id="fieldsMetric">0</strong>
+            </article>
+          </section>
+
+          <section class="data-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Dataset preview</p>
+                <h2>Raw va curated jadval</h2>
+              </div>
+              <div class="tabs" role="tablist" aria-label="Data view">
+                <button class="tab active" data-tab="raw" type="button">Raw</button>
+                <button class="tab" data-tab="curated" type="button">Curated</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table id="dataTable"></table>
+            </div>
+          </section>
+        </section>
+
+        <aside class="inspector" aria-label="Governance and operations">
+          <section class="inspector-panel run-summary">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">Current run</p>
+                <h2 id="runTitle">Pipeline tayyor</h2>
+              </div>
+              <span class="run-state" id="runState">Idle</span>
+            </div>
+            <div class="summary-grid">
+              <div>
+                <span>Mode</span>
+                <strong id="modeSummary">Batch</strong>
+              </div>
+              <div>
+                <span>Storage</span>
+                <strong>MinIO / ClickHouse</strong>
+              </div>
+              <div>
+                <span>Model</span>
+                <strong>Fact + Dimension</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="inspector-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">Great Expectations</p>
+                <h2>Data quality</h2>
+              </div>
+            </div>
+            <div class="quality-list" id="qualityList"></div>
+          </section>
+
+          <section class="inspector-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">Atlas lineage</p>
+                <h2>Data flow</h2>
+              </div>
+            </div>
+            <div class="lineage">
+              <span>Source</span>
+              <span>FastAPI</span>
+              <span>NiFi</span>
+              <span>Kafka</span>
+              <span>MinIO</span>
+              <span>ClickHouse</span>
+              <span>BI/API</span>
+            </div>
+          </section>
+
+          <section class="inspector-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">Governance</p>
+                <h2>Operatsiyalar</h2>
+              </div>
+            </div>
+            <div class="ops-list" id="opsList"></div>
+          </section>
+
+          <section class="inspector-panel log-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">ELK log</p>
+                <h2>Pipeline log</h2>
+              </div>
+              <button class="button text" id="exportBtn" type="button">Export JSON</button>
+            </div>
+            <pre class="log-box" id="logBox"></pre>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="stageModal" aria-hidden="true">
+      <section class="stage-modal" role="dialog" aria-modal="true" aria-labelledby="modalStageTitle">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow" id="modalLayer">Pipeline stage</p>
+            <h2 id="modalStageTitle">Stage</h2>
+          </div>
+          <button class="modal-close" id="modalCloseBtn" type="button" aria-label="Modalni yopish">x</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-summary">
+            <span class="modal-icon" id="modalIcon">DW</span>
+            <div>
+              <p id="modalDescription"></p>
+              <div class="modal-meta">
+                <span id="modalSource">Source</span>
+                <span id="modalMode">Mode</span>
+              </div>
+            </div>
+          </div>
+          <div class="process-list" id="modalProcessList"></div>
+        </div>
+      </section>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
+

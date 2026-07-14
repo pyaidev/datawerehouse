@@ -1,0 +1,17 @@
+﻿version: 2
+
+sources:
+  - name: warehouse
+    schema: dwh
+    tables:
+      - name: curated_events
+        description: Curated events loaded by FastAPI/PySpark pipeline.
+        columns:
+          - name: dw_id
+            tests: [not_null]
+          - name: run_id
+            tests: [not_null]
+          - name: source_entity
+            tests: [not_null]
+          - name: metric_value
+            tests: [not_null]
