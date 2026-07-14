@@ -23,6 +23,13 @@ type StaticStageDetail = {
   artifacts?: Record<string, unknown>;
 };
 
+type StageDescription = {
+  does: string;
+  flow: string;
+  result: string;
+  note?: string;
+};
+
 type IconName =
   | "api"
   | "route"
@@ -86,6 +93,101 @@ const processMap: Record<string, string[]> = {
   export: ["Select format", "Build file", "Publish download"],
 };
 
+
+const stageDescriptions: Record<string, StageDescription> = {
+  fastapi: {
+    does: "Frontenddan kelgan pipeline requestni qabul qiladi, source va limitni tekshiradi, tashqi test API dan real JSON payload oladi.",
+    flow: "Request Next proxy orqali FastAPI backendga o'tadi, keyin DummyJSON endpointdan data olinadi va raw rows uchun normalize qilinadi.",
+    result: "Pipeline run_id yaratiladi, external payload preview chiqadi va keyingi Kafka/MinIO bosqichlari uchun data tayyor bo'ladi.",
+  },
+  nifi: {
+    does: "Production dataflow uchun routing, FlowFile metadata va visual flow boshqaruvini ifodalaydi.",
+    flow: "Source payload FlowFile sifatida keladi, route qilinadi va keyingi ingestion/storage qatlamiga uzatiladi.",
+    result: "NiFi flow kodi mavjud, lekin hozirgi manual Run Pipeline tugmasi NiFi processini trigger qilmaydi.",
+    note: "Bu stage arxitektura qismi sifatida ko'rsatilgan; real trigger alohida NiFi integration bilan ulanadi.",
+  },
+  kafka: {
+    does: "Pipeline run haqida ingestion event yaratadi va Kafka topicga publish qiladi.",
+    flow: "FastAPI metadata event tuzadi, JSON serialize qiladi va dwh.ingestion.events topicga yozadi.",
+    result: "Kafka topic, partition va offset qaytadi; monitoring yoki downstream consumer shu eventdan foydalanishi mumkin.",
+  },
+  landing: {
+    does: "Tashqi sourcedan kelgan original payloadni o'zgartirmasdan Landing Zone ga saqlaydi.",
+    flow: "FastAPI olgan payload MinIO landing-zone bucketiga JSON object sifatida yoziladi.",
+    result: "Audit va replay uchun original s3 path paydo bo'ladi: landing.json.",
+  },
+  raw: {
+    does: "Original payload ichidan collection rows ajratib, raw data lake formatida saqlaydi.",
+    flow: "Landing payloaddan products/users/carts kabi collection olinadi va raw-zone ichiga raw.json qilib yoziladi.",
+    result: "Keyingi validation va transform uchun normalized raw rows tayyor bo'ladi.",
+  },
+  gx: {
+    does: "Raw data sifatini tekshiradi: record count, id mavjudligi, schema bo'sh emasligi va null threshold.",
+    flow: "Raw rows validatorga beriladi, har bir quality rule pass/fail natija qaytaradi.",
+    result: "Quality score va checks list hosil bo'ladi; UI dagi Quality panel shu natijani ko'rsatadi.",
+  },
+  spark: {
+    does: "Raw rowsni analytics uchun curated business schema ga aylantiradi.",
+    flow: "Raw rowlarga run metadata qo'shiladi, source turiga qarab entity, category va metric fieldlar mapping qilinadi.",
+    result: "Curated rows hosil bo'ladi; keyin object storage va ClickHouse load shu rows orqali bajariladi.",
+    note: "Manual run ichida Python transform ishlaydi; PySpark job alohida spark-submit uchun tayyorlangan.",
+  },
+  curated: {
+    does: "Transformdan chiqqan business-ready rowsni curated zone object sifatida saqlaydi.",
+    flow: "Memory ichidagi curated rows JSON objectga serialize qilinadi va MinIO ga yoziladi.",
+    result: "Curated object path qaytadi; warehouse load va replay uchun curated.json tayyor bo'ladi.",
+  },
+  clickhouse: {
+    does: "Curated rowsni analitik Data Warehouse jadvaliga insert qiladi.",
+    flow: "Backend ClickHouse client orqali curated_events jadvalini yaratadi yoki topadi, rowsni batch insert qiladi.",
+    result: "KPI, dashboard va BI querylar uchun curated_events jadvalida analytics data paydo bo'ladi.",
+  },
+  postgres: {
+    does: "Pipeline run auditini ODS/metadata sifatida PostgreSQL jadvaliga yozadi.",
+    flow: "run_id, source, mode, records, quality_score va warnings pipeline_runs jadvaliga upsert qilinadi.",
+    result: "Har bir run bo'yicha audit trail hosil bo'ladi, keyin monitoring va troubleshooting uchun ishlatiladi.",
+  },
+  airflow: {
+    does: "Batch orchestration va scheduler vazifasini bajarishi uchun qo'shilgan DAG qatlamini ifodalaydi.",
+    flow: "Airflow DAG FastAPI pipeline endpointni schedule yoki manual trigger orqali chaqirishi mumkin.",
+    result: "DAG run, retry va task status Airflow UI orqali boshqariladi.",
+    note: "Hozirgi frontend Run Pipeline bevosita FastAPI chaqiradi; Airflow DAG alohida ishlatiladi.",
+  },
+  dbt: {
+    does: "Warehouse ichidagi SQL modeling, staging va mart qatlamlarini standartlashtirish uchun ishlatiladi.",
+    flow: "ClickHouse curated_events relation staging modelga, keyin mart/fact modelga aylantiriladi.",
+    result: "BI va KPI uchun tartibli SQL model va testlar bazasi paydo bo'ladi.",
+    note: "Manual API run ichida dbt CLI ishga tushmaydi; project va model fayllari tayyor.",
+  },
+  superset: {
+    does: "ClickHouse dagi curated data asosida dashboard va BI hisobotlar ko'rsatish qatlamini bildiradi.",
+    flow: "Warehouse jadvali Superset dataset sifatida ulanadi, chart va dashboardlar shu datasetdan o'qiydi.",
+    result: "Rahbariyat va statistik xodimlar KPI/dashboard orqali tayyor analyticsni ko'radi.",
+    note: "Bu frontend run Superset API ni trigger qilmaydi; data ClickHouse da dashboardga tayyor bo'ladi.",
+  },
+  trino: {
+    does: "Turli storage va warehouse manbalar ustidan ad-hoc SQL so'rov qilish gatewayini ifodalaydi.",
+    flow: "Foydalanuvchi query yuboradi, Trino cataloglar bo'yicha plan tuzadi va result set qaytaradi.",
+    result: "Analitiklar turli manbalardan tez SQL query olish imkoniga ega bo'ladi.",
+    note: "Compose ichida Trino service hali ulanmagan; bu stage arxitektura qatlamini ko'rsatadi.",
+  },
+  api: {
+    does: "DWH natijalarini boshqa tizimlarga API orqali berish qatlamini bildiradi.",
+    flow: "External system FastAPI endpointlarga so'rov yuboradi, backend warehouse yoki service datani JSON response qiladi.",
+    result: "OpenAPI docs va API contract orqali integratsiya qilish mumkin bo'ladi.",
+  },
+  portal: {
+    does: "Hozirgi Next.js web interfeysni bildiradi: pipeline run, status, preview, logs va modal inspector.",
+    flow: "Browser Next.js appga ulanadi, Next API proxy backend bilan gaplashadi va response state sifatida render qilinadi.",
+    result: "Foydalanuvchi har bir stepda nima bo'lganini UI orqali ko'radi.",
+  },
+  export: {
+    does: "Natijalarni CSV, Excel, PDF yoki JSON sifatida tashqariga chiqarish qatlamini ifodalaydi.",
+    flow: "Tanlangan raw yoki curated result export servicega beriladi, service kerakli file formatni yaratadi.",
+    result: "Foydalanuvchi hisobot yoki ochiq data faylini yuklab olishi mumkin.",
+    note: "Hozir API JSON preview real ishlaydi; CSV/PDF export endpoint keyingi ish sifatida qolgan.",
+  },
+};
 const staticStageDetails: Record<string, StaticStageDetail> = {
   fastapi: {
     input_ref: "POST http://localhost:8000/pipeline/run",
@@ -451,6 +553,7 @@ export function Dashboard() {
               <button onClick={() => setActiveStage(null)}>Close</button>
             </div>
             <p className="modalDetail">{activeStage.detail}</p>
+            <StageDescriptionBlock stage={activeStage} />
             <StageRunState result={activeStageResult} />
             <StageInspector stage={activeStage} result={activeStageResult} fallback={activeStaticDetail} />
           </section>
@@ -474,6 +577,33 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+
+function StageDescriptionBlock({ stage }: { stage: StageMeta }) {
+  const description = stageDescriptions[stage.id];
+
+  if (!description) return null;
+
+  return (
+    <section className="stageDescription">
+      <div className="detailTitle"><Icon name="server" /><strong>Tavsif</strong></div>
+      <div className="descriptionGrid">
+        <DescriptionItem label="Nima qiladi" value={description.does} />
+        <DescriptionItem label="Data oqimi" value={description.flow} />
+        <DescriptionItem label="Natija" value={description.result} />
+        {description.note && <DescriptionItem label="Izoh" value={description.note} />}
+      </div>
+    </section>
+  );
+}
+
+function DescriptionItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="descriptionItem">
+      <span>{label}</span>
+      <p>{value}</p>
+    </div>
+  );
+}
 function StageRunState({ result }: { result?: StageResult }) {
   if (!result) {
     return (

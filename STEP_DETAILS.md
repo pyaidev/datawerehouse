@@ -758,3 +758,7 @@ Pipeline run tugagandan keyin frontend real backend response ichidagi stage nati
 ### Halol izoh
 
 Bu hozir backend streaming emas. Backend response bitta marta qaytadi, frontend esa shu real natijani foydalanuvchiga tushunarli qilish uchun step-by-step playback qiladi. Real-time streaming kerak bo'lsa keyingi bosqichda SSE yoki WebSocket endpoint qo'shiladi.
+
+## Modal Tavsiflari
+
+Har bir stage modali Tavsif blokini ko'rsatadi: Nima qiladi, Data oqimi, Natija, Izoh.

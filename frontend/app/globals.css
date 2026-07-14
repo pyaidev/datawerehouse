@@ -198,6 +198,37 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 
 
 .modal.wide { width: min(1120px, 100%); }
+.stageDescription {
+  margin: 14px 16px 0;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+.descriptionGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.descriptionItem {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+.descriptionItem span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.descriptionItem p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
 .runState {
   margin: 14px 16px 0;
   padding: 10px 12px;
@@ -324,7 +355,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 @media (max-width: 860px) {
   .panelActions { justify-content: stretch; }
   .panelActions .smallButton, .playbackBadge { flex: 1 1 auto; }
-  .deepGrid { grid-template-columns: 1fr; }
+  .deepGrid, .descriptionGrid { grid-template-columns: 1fr; }
   .detailCard.wide { grid-column: auto; }
   .topbar, .panelHead { align-items: stretch; flex-direction: column; }
   .controlPanel, .metrics, .stageGrid { grid-template-columns: 1fr; }
