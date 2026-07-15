@@ -933,8 +933,12 @@ function ScenarioStepNotes({
               key={stage.id}
               className={["scenarioStepNote", active ? "active" : "", visited ? "visited" : "", status].join(" ")}
               onClick={() => onSelect(stage)}
+              style={{ "--stage-color": stage.color } as CSSProperties}
             >
-              <span className="scenarioStepIndex">{index + 1}</span>
+              <span className="scenarioStepVisual">
+                <span className="scenarioStepIndex">{index + 1}</span>
+                <Icon name={stage.icon} />
+              </span>
               <span className="scenarioStepBody">
                 <strong>{stage.label}</strong>
                 <em>{stage.layer} | {status.toUpperCase()}</em>

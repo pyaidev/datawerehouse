@@ -632,57 +632,57 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 
 .scenarioStepNotes {
   margin: 0 12px 12px;
-  padding: 12px;
+  padding: 14px;
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
 .scenarioStepNotesHead {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 .scenarioStepNotesHead p {
-  margin: 0 0 3px;
+  margin: 0 0 4px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
 }
 .scenarioStepNotesHead h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 18px;
 }
 .scenarioStepNotesHead span {
-  padding: 5px 8px;
+  padding: 6px 10px;
   color: #234f76;
   background: #edf5fb;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
 }
 .scenarioStepNoteGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 .scenarioStepNote {
+  --stage-color: #3274e8;
   min-width: 0;
-  min-height: 132px;
-  padding: 10px;
+  min-height: 220px;
+  padding: 12px;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: start;
-  gap: 9px;
+  grid-template-rows: 94px minmax(0, 1fr);
+  gap: 11px;
   color: var(--ink);
   background: #f8fafc;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 8px;
   text-align: left;
 }
-.scenarioStepNote:hover { background: #f3f7fb; border-color: #b9c7d9; }
+.scenarioStepNote:hover { background: #f3f7fb; border-color: #b9c7d9; transform: translateY(-1px); }
 .scenarioStepNote.active {
   background: #edf4ff;
   border-color: #3274e8;
@@ -691,32 +691,63 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 .scenarioStepNote.done, .scenarioStepNote.visited { background: #f5fbf8; border-color: #b9e2c9; }
 .scenarioStepNote.warning { background: #fff9ed; border-color: #efd6a3; }
 .scenarioStepNote.error { background: #fff1f1; border-color: #efb8b8; }
-.scenarioStepIndex {
-  width: 28px;
-  height: 28px;
+.scenarioStepVisual {
+  position: relative;
+  min-height: 94px;
   display: grid;
   place-items: center;
   color: #fff;
-  background: #10233f;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 950;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--stage-color) 88%, #ffffff 12%), color-mix(in srgb, var(--stage-color) 60%, #10233f 40%));
+  border-radius: 7px;
+  overflow: hidden;
 }
-.scenarioStepNote.active .scenarioStepIndex { background: #3274e8; }
+.scenarioStepVisual::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 20% 20%, rgba(255,255,255,.22) 0 1px, transparent 1px), linear-gradient(120deg, rgba(255,255,255,.14), transparent 45%);
+  background-size: 18px 18px, auto;
+}
+.scenarioStepVisual svg {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  stroke-width: 2.1;
+}
+.scenarioStepIndex {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #10233f;
+  background: #fff;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 950;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .18);
+}
+.scenarioStepNote.active .scenarioStepIndex { color: #1557bd; }
 .scenarioStepBody {
   min-width: 0;
   display: grid;
-  gap: 5px;
+  gap: 7px;
 }
 .scenarioStepBody strong {
   overflow: hidden;
-  font-size: 12px;
+  font-size: 16px;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .scenarioStepBody em {
   color: #526171;
-  font-size: 9px;
+  font-size: 10px;
   font-style: normal;
   font-weight: 900;
   text-transform: uppercase;
@@ -725,15 +756,15 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   display: -webkit-box;
   overflow: hidden;
   color: #334155;
-  font-size: 10px;
-  line-height: 1.35;
-  -webkit-line-clamp: 2;
+  font-size: 12px;
+  line-height: 1.42;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
 .scenarioStepBody code {
   overflow: hidden;
   color: #174477;
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -741,8 +772,8 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   display: -webkit-box;
   overflow: hidden;
   color: #0e7144;
-  font-size: 9px;
-  line-height: 1.35;
+  font-size: 10px;
+  line-height: 1.38;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
