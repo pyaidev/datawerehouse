@@ -462,6 +462,90 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 .stageSidebarPanel .descriptionGrid { grid-template-columns: 1fr; }
 .stageSidebarPanel .descriptionItem { padding: 8px; }
 .stageSidebarPanel .descriptionItem p { font-size: 11px; }
+.preparationLifecycle {
+  margin: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+  background: #f8fbfd;
+  border: 1px solid #c8dceb;
+  border-radius: 8px;
+}
+.preparationLifecycle .detailTitle { align-items: center; }
+.prepGate {
+  margin-left: auto;
+  padding: 4px 7px;
+  border-radius: 5px;
+  font-size: 8px;
+  font-weight: 950;
+}
+.prepGate.ready { color: #0e7144; background: #ddf6ea; }
+.prepGate.waiting { color: #5b6472; background: #e9edf2; }
+.prepVersionBox {
+  display: grid;
+  gap: 7px;
+}
+.prepVersionBox span {
+  min-width: 0;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.prepVersionBox strong {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.prepVersionBox b,
+.prepVersionBox code {
+  overflow-wrap: anywhere;
+  color: #173d65;
+  font-size: 10px;
+}
+.prepLifecycleList {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+  list-style: none;
+}
+.prepLifecycleList li {
+  min-width: 0;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid #aab4c2;
+  border-radius: 7px;
+}
+.prepLifecycleList li.done { border-left-color: #17a565; }
+.prepLifecycleList li.ready { border-left-color: #3274e8; background: #f1f6ff; }
+.prepLifecycleList li.warning { border-left-color: #d68713; background: #fff9ed; }
+.prepLifecycleList li.waiting { opacity: .78; }
+.prepLifecycleList li > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #10233f;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 950;
+}
+.prepLifecycleList li.done > span { background: #17a565; }
+.prepLifecycleList li.ready > span { background: #3274e8; }
+.prepLifecycleList li.warning > span { background: #d68713; }
+.prepLifecycleList li div { min-width: 0; display: grid; gap: 3px; }
+.prepLifecycleList li strong { font-size: 11px; }
+.prepLifecycleList li em { color: #526171; font-size: 8px; font-style: normal; font-weight: 900; }
+.prepLifecycleList li p { margin: 0; color: #334155; font-size: 10px; line-height: 1.38; }
 .stageSidebarPanel .inspector { padding: 0 10px 10px; }
 .stageSidebarPanel .deepGrid { grid-template-columns: 1fr; gap: 8px; }
 .stageSidebarPanel .detailCard.wide { grid-column: auto; }

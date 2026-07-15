@@ -162,7 +162,7 @@ const processMap: Record<string, string[]> = {
   kafka: ["Build event", "Serialize JSON", "Publish to dwh.ingestion.events"],
   landing: ["Build object key", "Write landing JSON", "Return S3 reference"],
   raw: ["Normalize collection", "Write raw rows", "Catalog raw object"],
-  preparation: ["Profile columns and types", "Trim and normalize nulls", "Apply manual corrections", "Write prepared version"],
+  preparation: ["RAW_RECEIVED: raw object o'qildi", "PROFILED: column/type profile olindi", "NORMALIZED: trim va null normalize", "MANUAL_CORRECTION: qo'lda tuzatishlar", "VERSION_SAVED: prepared v1 saqlandi", "READY_FOR_DWH: qualitydan keyin warehousega ketadi"],
   gx: ["Record count", "Primary key", "Schema and null threshold"],
   spark: ["Read raw", "Transform dataframe", "Write curated model"],
   curated: ["Business mapping", "Conformed columns", "Write curated JSON"],
@@ -1350,12 +1350,108 @@ function StageSidePanel({
         <StageRunState stage={stage} result={result} />
         <StageProcessSidebar stage={stage} result={result} active={active} />
         <StageDescriptionBlock stage={stage} />
+        <PreparationLifecycle stage={stage} result={result} />
         <StageInspector stage={stage} result={result} fallback={staticStageDetails[stage.id]} />
       </div>
     </section>
   );
 }
 
+function PreparationLifecycle({ stage, result }: { stage: StageMeta; result?: StageResult }) {
+  if (stage.id !== "preparation") return null;
+
+  const metrics = result?.metrics ?? {};
+  const artifacts = result?.artifacts ?? {};
+  const applied = Number(metrics.manual_corrections_applied ?? 0);
+  const rejected = Number(metrics.manual_corrections_rejected ?? 0);
+  const rows = Number(metrics.output_rows ?? metrics.rows ?? 0);
+  const preparedKey = String(artifacts.key ?? result?.output_ref ?? "prepared.json kutilmoqda");
+  const executed = Boolean(result);
+  const hasWarnings = rejected > 0 || result?.status === "warning";
+
+  const lifecycle = [
+    {
+      code: "RAW_RECEIVED",
+      title: "Raw data qabul qilindi",
+      text: "Raw zone ichidagi asl data o'zgartirilmasdan input sifatida olinadi.",
+      state: executed ? "done" : "waiting",
+    },
+    {
+      code: "PROFILED",
+      title: "Profiling bajarildi",
+      text: `${metrics.columns_profiled ?? 0} column, ${rows || 0} row tekshirildi. Type va schema ko'rildi.`,
+      state: executed ? "done" : "waiting",
+    },
+    {
+      code: "NORMALIZED",
+      title: "Tozalash / normalize",
+      text: `${metrics.trimmed_values ?? 0} trim, ${metrics.blank_to_null ?? 0} blank -> NULL amali bajarildi.`,
+      state: executed ? "done" : "waiting",
+    },
+    {
+      code: "MANUAL_CORRECTION",
+      title: "Qo'lda tuzatishlar",
+      text: `${applied} ta tuzatish qo'llandi, ${rejected} ta tuzatish rad etildi. Raw data buzilmaydi.`,
+      state: !executed ? "waiting" : hasWarnings ? "warning" : "done",
+    },
+    {
+      code: "PREPARED_VERSION_SAVED",
+      title: "Prepared version saqlandi",
+      text: `Yangi versiya MinIO pathga yozildi: ${preparedKey}`,
+      state: executed ? "done" : "waiting",
+    },
+    {
+      code: "QUALITY_GATE",
+      title: "DWH oldi quality gate",
+      text: "Prepared version Great Expectations validatsiyasidan o'tgandan keyin keyingi stepga uzatiladi.",
+      state: executed ? "ready" : "waiting",
+    },
+    {
+      code: "READY_FOR_DWH",
+      title: "Data Warehousega ketish statusi",
+      text: executed
+        ? "Status: READY_FOR_DWH. Keyingi bosqichlar shu prepared versiondan Curated Zone va ClickHouse DWH ga data yuboradi."
+        : "Status: WAITING_INPUT. Hali prepared version yaratilmagan, DWH ga yuborilmaydi.",
+      state: executed ? "ready" : "waiting",
+    },
+  ];
+
+  return (
+    <section className="preparationLifecycle">
+      <div className="detailTitle">
+        <Icon name="workflow" />
+        <strong>Data Preparation statuslari</strong>
+        <span className={["prepGate", executed ? "ready" : "waiting"].join(" ")}>{executed ? "READY FOR DWH" : "WAITING"}</span>
+      </div>
+      <div className="prepVersionBox">
+        <span>
+          <strong>Version</strong>
+          <b>{executed ? "prepared v1" : "version kutilmoqda"}</b>
+        </span>
+        <span>
+          <strong>Saqlash joyi</strong>
+          <code>{preparedKey}</code>
+        </span>
+        <span>
+          <strong>Qoida</strong>
+          <b>{"Raw immutable -> Prepared version -> Quality -> DWH"}</b>
+        </span>
+      </div>
+      <ol className="prepLifecycleList">
+        {lifecycle.map((item, index) => (
+          <li key={item.code} className={item.state}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div>
+              <strong>{item.title}</strong>
+              <em>{item.code}</em>
+              <p>{item.text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 function StageProcessSidebar({
   stage,
   result,

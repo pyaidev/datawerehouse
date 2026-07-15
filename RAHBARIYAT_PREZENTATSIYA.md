@@ -438,3 +438,21 @@ Bu demo va konseptual MVP. Production uchun real manbalar, xavfsizlik, SSO, moni
 ## 15. Demo yakunida aytiladigan xulosa
 
 "Bugungi demo Data Warehouse jarayonini rahbariyat va texnik guruh uchun bir xil darajada tushunarli qilishga qaratilgan. Biz test API orqali realga yaqin ma'lumot oqimini ko'rsatdik, har bir bosqichni alohida ochdik, data preparation va quality nazoratini qo'shdik, ClickHouse/PostgreSQL qatlamlarini ajratdik va yakunda foydalanuvchiga dashboard/API/export orqali taqdim etish ssenariysini ko'rsatdik. Keyingi bosqich - haqiqiy manbalarga ulanish, production servislarni to'liq integratsiya qilish va xavfsizlik hamda monitoringni yakunlash."
+
+## 16. Data Preparation statuslari va versionlash
+
+Data Preparation bosqichi Data Warehouse ga yuborishdan oldingi nazorat nuqtasi sifatida tushuntiriladi. Bu yerda data darhol ClickHouse yoki DWH ga ketmaydi. Oldin alohida prepared version yaratiladi.
+
+Statuslar:
+
+- `RAW_RECEIVED` - raw zone dan asl data o'qildi. Raw data o'zgartirilmaydi.
+- `PROFILED` - columnlar, type va umumiy rows profili tekshirildi.
+- `NORMALIZED` - string trim, bo'sh qiymatlarni NULL qilish kabi tozalash bajarildi.
+- `MANUAL_CORRECTION` - operator kiritgan qo'lda tuzatishlar qo'llandi yoki rad etildi.
+- `PREPARED_VERSION_SAVED` - yangi prepared version saqlandi, masalan `prepared.json`.
+- `QUALITY_GATE` - shu prepared version quality validation ga yuboriladi.
+- `READY_FOR_DWH` - validationdan keyin data Curated Zone va ClickHouse DWH ga ketishga tayyor.
+
+Rahbariyatga aytiladigan asosiy gap:
+
+"Data Preparation - bu DWH oldidagi nazorat eshigi. Raw data buzilmaydi, har bir tuzatish yangi prepared version sifatida saqlanadi. Faqat shu version quality checkdan o'tgandan keyin Data Warehouse ga yuboriladi. Shuning uchun keyinchalik qaysi ma'lumot qachon, qanday tuzatilgani va qaysi version DWH ga ketgani ko'rinadi."
