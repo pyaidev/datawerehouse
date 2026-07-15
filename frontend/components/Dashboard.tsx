@@ -334,7 +334,7 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   },
 };
 
-const PLAYBACK_STEP_MS = 10000;
+const PLAYBACK_STEP_MS = 3000;
 const PLAYBACK_ORDER = [
   "fastapi",
   "nifi",
@@ -586,7 +586,7 @@ export function Dashboard() {
             </div>
             <div className="panelActions">
               {result && <span className={`playbackBadge ${playbackRunning ? "running" : ""}`}>{Math.max(playbackPosition, 0)}/{playbackTotal}</span>}
-              <span className="stepDuration"><Icon name="clock" /> 10 soniya / step</span>
+              <span className="stepDuration"><Icon name="clock" /> 3 soniya / step</span>
               <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running || playbackRunning}><Icon name="play" /> Qayta ko'rish</button>
               <button className="iconButton" onClick={loadInitial} disabled={running} aria-label="Backend statusini yangilash" title="Backend statusini yangilash"><Icon name="refresh" /></button>
             </div>
@@ -996,7 +996,7 @@ function RunReport({
         )}
 
         <div className="reportFooter">
-          <span>{playbackRunning ? "10 soniyalik tushuntirish davom etmoqda" : "Timeline va lineage tekshirishga tayyor"}</span>
+          <span>{playbackRunning ? "3 soniyalik tushuntirish davom etmoqda" : "Timeline va lineage tekshirishga tayyor"}</span>
           {result.status === "error" && (
             <button className="retryButton" onClick={onRetry} disabled={running || playbackRunning}>
               <Icon name="refresh" /> Retry normal run
@@ -1165,10 +1165,10 @@ function ScenarioCanvas({
           if (isPlaying) {
             visualState = "playing";
             stateLabel = stageResult
-              ? "RUNNING 10s"
+              ? "RUNNING 3s"
               : codeStatus === "not_connected"
                 ? "NOT CONNECTED"
-                : "AVAILABLE 10s";
+                : "AVAILABLE 3s";
           } else if (stageResult) {
             if (playbackStarted && !isVisited) {
               visualState = "queued";
