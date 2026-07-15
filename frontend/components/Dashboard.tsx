@@ -334,7 +334,7 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   },
 };
 
-const PLAYBACK_STEP_MS = 3000;
+const PLAYBACK_STEP_MS = 5000;
 const PLAYBACK_ORDER = [
   "fastapi",
   "nifi",
@@ -586,7 +586,7 @@ export function Dashboard() {
             </div>
             <div className="panelActions">
               {result && <span className={`playbackBadge ${playbackRunning ? "running" : ""}`}>{Math.max(playbackPosition, 0)}/{playbackTotal}</span>}
-              <span className="stepDuration"><Icon name="clock" /> 3 soniya / step</span>
+              <span className="stepDuration"><Icon name="clock" /> 5 soniya / step</span>
               <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running || playbackRunning}><Icon name="play" /> Qayta ko'rish</button>
               <button className="iconButton" onClick={loadInitial} disabled={running} aria-label="Backend statusini yangilash" title="Backend statusini yangilash"><Icon name="refresh" /></button>
             </div>
@@ -601,7 +601,12 @@ export function Dashboard() {
             runStatus={result?.status}
             onSelect={setActiveStage}
           />
-        </article>
+          <ScenarioStepNotes
+            stageResults={stageResults}
+            visitedStageIds={visitedStageIds}
+            playbackStageId={playbackStageId}
+            onSelect={setActiveStage}
+          />        </article>
 
         <aside className="runSidebar">
           <StageSidePanel
@@ -887,6 +892,63 @@ function PreparationWorkbench({
   );
 }
 
+function ScenarioStepNotes({
+  stageResults,
+  visitedStageIds,
+  playbackStageId,
+  onSelect,
+}: {
+  stageResults: Map<string, StageResult>;
+  visitedStageIds: string[];
+  playbackStageId: string | null;
+  onSelect: (stage: StageMeta) => void;
+}) {
+  const orderedStages = PLAYBACK_ORDER
+    .map((stageId) => stageCatalog.find((stage) => stage.id === stageId))
+    .filter((stage): stage is StageMeta => Boolean(stage));
+
+  return (
+    <section className="scenarioStepNotes" aria-label="Scenario steplari nima ish qildi">
+      <div className="scenarioStepNotesHead">
+        <div>
+          <p>Scenario izohi</p>
+          <h3>Har bir step nima ish qiladi</h3>
+        </div>
+        <span>{orderedStages.length} step</span>
+      </div>
+      <div className="scenarioStepNoteGrid">
+        {orderedStages.map((stage, index) => {
+          const result = stageResults.get(stage.id);
+          const description = stageDescriptions[stage.id];
+          const active = playbackStageId === stage.id;
+          const visited = visitedStageIds.includes(stage.id);
+          const status = result?.status ?? (visited ? "available" : "queued");
+          const processSummary = (processMap[stage.id] ?? []).slice(0, 3).join(" -> ");
+          const mainText = result?.message || description?.does || stage.detail;
+          const outcome = result?.output_ref || description?.result || "Bu bosqich ishga tushganda natija shu yerda ko'rinadi.";
+
+          return (
+            <button
+              type="button"
+              key={stage.id}
+              className={["scenarioStepNote", active ? "active" : "", visited ? "visited" : "", status].join(" ")}
+              onClick={() => onSelect(stage)}
+            >
+              <span className="scenarioStepIndex">{index + 1}</span>
+              <span className="scenarioStepBody">
+                <strong>{stage.label}</strong>
+                <em>{stage.layer} | {status.toUpperCase()}</em>
+                <small>{mainText}</small>
+                <code>{processSummary}</code>
+                <b>{outcome}</b>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 function ExecutionTimeline({
   stages,
   visitedStageIds,
@@ -996,7 +1058,7 @@ function RunReport({
         )}
 
         <div className="reportFooter">
-          <span>{playbackRunning ? "3 soniyalik tushuntirish davom etmoqda" : "Timeline va lineage tekshirishga tayyor"}</span>
+          <span>{playbackRunning ? "5 soniyalik tushuntirish davom etmoqda" : "Timeline va lineage tekshirishga tayyor"}</span>
           {result.status === "error" && (
             <button className="retryButton" onClick={onRetry} disabled={running || playbackRunning}>
               <Icon name="refresh" /> Retry normal run
@@ -1165,10 +1227,10 @@ function ScenarioCanvas({
           if (isPlaying) {
             visualState = "playing";
             stateLabel = stageResult
-              ? "RUNNING 3s"
+              ? "RUNNING 5s"
               : codeStatus === "not_connected"
                 ? "NOT CONNECTED"
-                : "AVAILABLE 3s";
+                : "AVAILABLE 5s";
           } else if (stageResult) {
             if (playbackStarted && !isVisited) {
               visualState = "queued";
