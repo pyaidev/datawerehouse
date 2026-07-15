@@ -1,0 +1,46 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="API Services process visual">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0f9f6e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#10233f" stop-opacity="0.98"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" x2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#eef6ff" stop-opacity="0.93"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#07101f" flood-opacity="0.25"/>
+    </filter>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M 28 0 L 0 0 0 28" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="640" height="360" rx="28" fill="url(#bg)"/>
+  <rect width="640" height="360" rx="28" fill="url(#grid)"/>
+  <circle cx="82" cy="80" r="42" fill="#ffffff" opacity="0.16"/>
+  <circle cx="568" cy="306" r="72" fill="#ffffff" opacity="0.10"/>
+  <text x="38" y="54" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="800">API Services</text>
+  <text x="38" y="82" fill="#d8e8ff" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700">Data Warehouse process view</text>
+  <g filter="url(#shadow)">
+    <rect x="40" y="126" width="146" height="112" rx="18" fill="url(#card)"/>
+    <rect x="247" y="126" width="146" height="112" rx="18" fill="url(#card)"/>
+    <rect x="454" y="126" width="146" height="112" rx="18" fill="url(#card)"/>
+  </g>
+  <path d="M194 182 H235" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity="0.86"/>
+  <path d="M226 170 L240 182 L226 194" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.86"/>
+  <path d="M401 182 H442" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity="0.86"/>
+  <path d="M433 170 L447 182 L433 194" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.86"/>
+  <rect x="72" y="150" width="82" height="40" rx="10" fill="#0f9f6e" opacity="0.92"/>
+  <text x="113" y="176" text-anchor="middle" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="900">API</text>
+  <text x="113" y="216" text-anchor="middle" fill="#182235" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="900">Map</text>
+  <rect x="280" y="146" width="80" height="48" rx="12" fill="#0f9f6e" opacity="0.86"/>
+  <path d="M298 170 H342 M298 184 H328 M298 156 H352" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.95"/>
+  <text x="320" y="216" text-anchor="middle" fill="#182235" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="900">Serve</text>
+  <rect x="486" y="148" width="82" height="54" rx="14" fill="#0f9f6e" opacity="0.88"/>
+  <path d="M506 165 H548 V187 H506 Z" fill="none" stroke="#ffffff" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M506 165 L527 180 L548 165" fill="none" stroke="#ffffff" stroke-width="6" stroke-linejoin="round"/>
+  <text x="527" y="224" text-anchor="middle" fill="#182235" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="900">Response</text>
+  <rect x="38" y="278" width="564" height="36" rx="12" fill="#ffffff" opacity="0.14"/>
+  <circle cx="64" cy="296" r="7" fill="#35d08c"/>
+  <text x="82" y="301" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800">Input -> Process -> Output</text>
+</svg>

@@ -136,6 +136,26 @@ const scenarioEdges: ScenarioEdge[] = [
   { from: "airflow", to: "spark", kind: "control" },
 ];
 
+const processImages: Record<string, string> = {
+  fastapi: "/process-images/fastapi.svg",
+  nifi: "/process-images/nifi.svg",
+  kafka: "/process-images/kafka.svg",
+  landing: "/process-images/landing.svg",
+  raw: "/process-images/raw.svg",
+  preparation: "/process-images/preparation.svg",
+  gx: "/process-images/gx.svg",
+  spark: "/process-images/spark.svg",
+  curated: "/process-images/curated.svg",
+  dbt: "/process-images/dbt.svg",
+  clickhouse: "/process-images/clickhouse.svg",
+  postgres: "/process-images/postgres.svg",
+  airflow: "/process-images/airflow.svg",
+  superset: "/process-images/superset.svg",
+  trino: "/process-images/trino.svg",
+  api: "/process-images/api.svg",
+  portal: "/process-images/portal.svg",
+  export: "/process-images/export.svg",
+};
 const processMap: Record<string, string[]> = {
   fastapi: ["Request body validate", "DummyJSON endpoint call", "Payload normalize"],
   nifi: ["FlowFile create", "Route source", "Attach metadata"],
@@ -936,8 +956,9 @@ function ScenarioStepNotes({
               style={{ "--stage-color": stage.color } as CSSProperties}
             >
               <span className="scenarioStepVisual">
+                <img src={processImages[stage.id]} alt={`${stage.label} process visual`} loading="lazy" />
                 <span className="scenarioStepIndex">{index + 1}</span>
-                <Icon name={stage.icon} />
+                <span className="scenarioStepIcon"><Icon name={stage.icon} /></span>
               </span>
               <span className="scenarioStepBody">
                 <strong>{stage.label}</strong>
