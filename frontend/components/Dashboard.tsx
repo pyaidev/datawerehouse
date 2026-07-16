@@ -1061,9 +1061,10 @@ function ScenarioStepNotes({
           const active = playbackStageId === stage.id;
           const visited = visitedStageIds.includes(stage.id);
           const status = result?.status ?? (visited ? "available" : "queued");
-          const processSummary = (processMap[stage.id] ?? []).slice(0, 3).join(" -> ");
-          const mainText = result?.message || description?.does || stage.detail;
-          const outcome = result?.output_ref || description?.result || "Bu bosqich ishga tushganda natija shu yerda ko'rinadi.";
+          const processSummary = (processMap[stage.id] ?? []).join(" -> ");
+          const mainText = [description?.does, description?.flow].filter(Boolean).join(" ");
+          const runtimeText = result?.message ? `Runtime: ${result.message}` : "Runtime: scenario ishga tushganda real natija shu yerda chiqadi.";
+          const outcome = [description?.result, runtimeText, result?.output_ref ? `Output: ${result.output_ref}` : ""].filter(Boolean).join(" ");
 
           return (
             <button
