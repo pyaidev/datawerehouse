@@ -281,6 +281,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   font-weight: 900;
   text-transform: uppercase;
 }
+.descriptionItem.wide { grid-column: 1 / -1; border-left: 4px solid #3274e8; background: #f1f6ff; }
 .descriptionItem p {
   margin: 0;
   color: var(--ink);
@@ -461,7 +462,8 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 .stageSidebarPanel .stageDescription { margin: 10px; padding: 9px; }
 .stageSidebarPanel .descriptionGrid { grid-template-columns: 1fr; }
 .stageSidebarPanel .descriptionItem { padding: 8px; }
-.stageSidebarPanel .descriptionItem p { font-size: 11px; }
+.stageSidebarPanel .descriptionItem.wide { grid-column: 1 / -1; border-left: 4px solid #3274e8; background: #f1f6ff; }
+.descriptionItem p { font-size: 11px; }
 .preparationLifecycle {
   margin: 10px;
   padding: 10px;

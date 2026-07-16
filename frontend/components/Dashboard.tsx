@@ -1920,6 +1920,7 @@ function StageDescriptionBlock({ stage }: { stage: StageMeta }) {
     <section className="stageDescription">
       <div className="detailTitle"><Icon name="server" /><strong>Tavsif</strong></div>
       <div className="descriptionGrid">
+        <DescriptionItem label="Nima uchun kerak" value={stagePresentationTexts[stage.id] ?? description.does} wide />
         <DescriptionItem label="Nima qiladi" value={description.does} />
         <DescriptionItem label="Data oqimi" value={description.flow} />
         <DescriptionItem label="Natija" value={description.result} />
@@ -1929,9 +1930,9 @@ function StageDescriptionBlock({ stage }: { stage: StageMeta }) {
   );
 }
 
-function DescriptionItem({ label, value }: { label: string; value: string }) {
+function DescriptionItem({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
   return (
-    <div className="descriptionItem">
+    <div className={["descriptionItem", wide ? "wide" : ""].join(" ")}>
       <span>{label}</span>
       <p>{value}</p>
     </div>
