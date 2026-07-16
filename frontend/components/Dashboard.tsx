@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { HealthResponse, LineageRecord, ManualCorrection, PipelineResult, QualityCheck, SourcesResponse, StageResult } from "../lib/types";
@@ -2280,6 +2280,3 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   server: <><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" /><path d="M8 7h0M8 17h0" /></>,
   close: <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>,
 };
-
-
-
