@@ -414,6 +414,7 @@ export function Dashboard() {
   const [playbackRunning, setPlaybackRunning] = useState(false);
   const [visitedStageIds, setVisitedStageIds] = useState<string[]>([]);
   const [awaitingVersionSelection, setAwaitingVersionSelection] = useState(false);
+  const [manualStopped, setManualStopped] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const playbackTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const playbackStagesRef = useRef<StageMeta[]>([]);
@@ -478,6 +479,7 @@ export function Dashboard() {
     setPlaybackStageId(null);
     setVisitedStageIds([]);
     setAwaitingVersionSelection(false);
+    setManualStopped(false);
     setSelectedVersionId(null);
     setActiveStage(null);
     setResult(null);
@@ -542,6 +544,7 @@ export function Dashboard() {
     setPlaybackStageId(null);
     setVisitedStageIds([]);
     setAwaitingVersionSelection(false);
+    setManualStopped(false);
     setSelectedVersionId(null);
     setActiveStage(null);
 
@@ -605,8 +608,25 @@ export function Dashboard() {
     clearPlaybackTimers();
     setPlaybackRunning(false);
     setAwaitingVersionSelection(false);
+    setManualStopped(true);
     const stoppedStage = playbackStageId ?? activeStage?.id ?? "current step";
     addLog("STOPPED_BY_USER: " + stoppedStage + " stepda qo'lda to'xtatildi.");
+  }
+
+  function continueAfterManualStop() {
+    setManualStopped(false);
+    setPlaybackRunning(true);
+    addLog("CONTINUE_FROM_STOP: keyingi stepga davom etdi.");
+    schedulePlaybackStep(playbackIndexRef.current + 1, 0);
+  }
+  function handleStageSelect(stage: StageMeta) {
+    setActiveStage(stage);
+    if (stage.id === "fastapi" || stage.id === "api") {
+      const endpoint = sources[source]?.endpoint ?? "/products";
+      const url = `https://dummyjson.com${endpoint}`;
+      addLog(`OPEN_TEST_API_JSON: ${url}`);
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
   }
   return (
     <main className="shell">
@@ -688,8 +708,19 @@ export function Dashboard() {
             <div className="panelActions">
               {result && <span className={`playbackBadge ${playbackRunning ? "running" : ""}`}>{Math.max(playbackPosition, 0)}/{playbackTotal}</span>}
               <span className="stepDuration"><Icon name="clock" /> 3 soniya / step</span>
-              <button className="smallButton stopButton" onClick={stopPlaybackAtCurrentStep} disabled={!playbackRunning}><Icon name="close" /> Stop step</button>
-              <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running || playbackRunning}><Icon name="play" /> Qayta ko'rish</button>
+              {manualStopped ? (
+                <button className="smallButton continueButton" onClick={continueAfterManualStop} disabled={!result || running}>
+                  <Icon name="play" /> Davom etish
+                </button>
+              ) : playbackRunning ? (
+                <button className="smallButton stopButton" onClick={stopPlaybackAtCurrentStep}>
+                  <Icon name="close" /> Stop step
+                </button>
+              ) : (
+                <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running}>
+                  <Icon name="play" /> Qayta ko'rish
+                </button>
+              )}
               <button className="iconButton" onClick={loadInitial} disabled={running} aria-label="Backend statusini yangilash" title="Backend statusini yangilash"><Icon name="refresh" /></button>
             </div>
           </div>
@@ -701,13 +732,13 @@ export function Dashboard() {
             apiRunning={running}
             totalRecords={result?.records ?? 0}
             runStatus={result?.status}
-            onSelect={setActiveStage}
+            onSelect={handleStageSelect}
           />
           <ScenarioStepNotes
             stageResults={stageResults}
             visitedStageIds={visitedStageIds}
             playbackStageId={playbackStageId}
-            onSelect={setActiveStage}
+            onSelect={handleStageSelect}
           />        </article>
 
         <aside className="runSidebar">
