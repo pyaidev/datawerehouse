@@ -926,7 +926,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 .scenarioStepNote {
   --stage-color: #3274e8;
   min-width: 0;
-  min-height: 360px;
+  min-height: 430px;
   padding: 14px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -1027,8 +1027,16 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   color: #334155;
   font-size: 13px;
   line-height: 1.48;
-  -webkit-line-clamp: 5;
+  -webkit-line-clamp: 8;
   -webkit-box-orient: vertical;
+}
+.scenarioStepBody small span {
+  display: block;
+  margin-bottom: 4px;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 .scenarioStepBody code {
   display: -webkit-box;

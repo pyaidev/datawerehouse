@@ -289,6 +289,27 @@ const stageDescriptions: Record<string, StageDescription> = {
     note: "Hozir API JSON preview real ishlaydi; CSV/PDF export endpoint keyingi ish sifatida qolgan.",
   },
 };
+const stagePresentationTexts: Record<string, string> = {
+  fastapi: "Bu yerda Data Warehousega kirayotgan ma'lumot birinchi marta qabul qilinyapti. FastAPI gateway source bilan ishlaydi, requestni tekshiradi va xom JSON payloadni oladi. Hozir ishlayotgan source lokal test API, shuning uchun null qiymatlar bor va keyingi bosqichlarda ular qayta ishlanadi.",
+  nifi: "NiFi bu yerda ingestion flow boshqaruvi uchun turibdi. Real productionda source'dan kelgan ma'lumotlarni marshrutlash, formatlash, flowfile metadata qo'shish va kerakli zonaga yuborish NiFi orqali bo'ladi. Demo scope'da bu vazifa FastAPI pipeline ichida soddalashtirilgan, shuning uchun status AVAILABLE.",
+  kafka: "Bu bosqichda pipeline ingestion event yaratadi. Ma'lumotning o'zi emas, balki pipeline hodisasi Kafka orqali uzatiladi. Bu real-time monitoring, boshqa servislarni xabardor qilish va event-driven architecture uchun kerak.",
+  landing: "Landing Zone - bu kelgan dataning asl nusxasi. Bu yerdagi data audit uchun muhim: keyin xato bo'lsa, manbadan nima kelganini aniq ko'rish mumkin. Biz bu bosqichda datani tozalamaymiz, faqat saqlaymiz.",
+  raw: "Raw Zone'da ma'lumot hali biznes model emas. Bu hali xom rowlar. Lekin endi pipeline uni jadvalga yaqinroq formatda ko'ra oladi. Keyingi Data Preparation aynan shu raw rowlar ustida ishlaydi.",
+  preparation: "Bu bosqichda biz xom datani bevosita DWHga yubormaymiz. Avval uni profil qilamiz, bo'sh qiymatlarni aniqlaymiz, stringlarni tozalaymiz va prepared version yaratamiz. Raw object saqlanib qoladi, shuning uchun data lineage va audit buzilmaydi.",
+  imputation: "Demo shu joyda ataylab to'xtaydi. Sababi Data Warehousega sifatsiz yoki bo'sh qiymatli data ketmasligi kerak. Bu bosqichda null qiymatlar topiladi, hisoblangan qiymatlar bilan to'ldiriladi, operator kerak bo'lsa qo'lda edit qiladi. Keyin foydalanuvchi prepared versionni tanlaydi va faqat shundan keyin data quality bosqichiga o'tadi.",
+  gx: "Bu bosqichda tayyorlangan data sifat nazoratidan o'tadi. Agar muhim fieldlar juda ko'p bo'sh bo'lsa yoki schema noto'g'ri bo'lsa, pipeline shu yerda to'xtashi mumkin. Bu DWHga noto'g'ri data ketishining oldini oladi.",
+  airflow: "Production muhitda bu jarayonlar qo'lda emas, Airflow DAG orqali jadval asosida yoki event asosida ishga tushadi. Hozirgi demo'da jarayonni tushunarli qilish uchun frontenddan manual trigger qilyapmiz.",
+  spark: "Bu bosqichda data analitik modelga o'tadi. Raw yoki prepared JSON endi biznesga kerakli columnlarga ajratiladi. Masalan mahsulot nomi, kategoriya, narx metric sifatida chiqariladi. Keyingi ClickHouse DWH aynan shu curated formatni qabul qiladi.",
+  curated: "Curated Zone - bu Data Lake ichidagi tozalangan va modelga solingan data qatlami. Bu qatlamdan keyin data DWHga yuklanadi yoki BI servislar undan foydalanadi.",
+  dbt: "dbt productionda SQL transformatsiyalar, fact/dimension model va KPI calculation uchun ishlatiladi. Hozirgi demo'da transformatsiya backend kod ichida bajarilgan, dbt esa keyingi chuqurlashtirish uchun tayyor qatlam sifatida ko'rsatilgan.",
+  clickhouse: "Bu bosqichda data Data Warehousega tushadi. ClickHouse katta hajmdagi analytical querylar, dashboardlar va KPI hisob-kitoblari uchun ishlatiladi. Demo'da curated rowlar ClickHousega insert qilinadi.",
+  postgres: "PostgreSQL bu yerda pipeline audit va operational metadata uchun ishlaydi. Har bir run bo'yicha qachon ishga tushgani, nechta record kelgani, quality score va warninglar yoziladi.",
+  superset: "Superset dashboard qatlami sifatida rejalashtirilgan. Demo'da biz dashboardni o'z frontendimizda ko'rsatyapmiz. Shuning uchun Superset NOT CONNECTED deb halol ko'rsatilgan.",
+  trino: "Trino turli storage va database ustidan yagona SQL query qilish uchun kerak. Bu production integratsiya bosqichi. Hozirgi demo'da Trino ulanmagan.",
+  api: "Bu qatlam orqali boshqa tizimlar tayyor data yoki KPIlarni API bilan olishi mumkin. Demo'da FastAPI mavjud, lekin bu alohida servis sifatida hali kengaytirilmagan.",
+  portal: "Portal foydalanuvchi uchun yagona oynadir. Operator yoki rahbariyat pipeline holatini, qaysi step ishlaganini, data qayerda to'xtaganini va natijani shu yerdan ko'radi.",
+  export: "Export arxitekturada bor, lekin demo scope'da real download endpoint hali qo'shilmagan. Keyingi bosqichda prepared yoki curated datani CSV/Excel/PDF sifatida export qilish qo'shiladi.",
+};
 const staticStageDetails: Record<string, StaticStageDetail> = {
   fastapi: {
     input_ref: "POST http://localhost:8000/pipeline/run",
@@ -1186,7 +1207,7 @@ function ScenarioStepNotes({
           const visited = visitedStageIds.includes(stage.id);
           const status = result?.status ?? (visited ? "available" : "queued");
           const processSummary = (processMap[stage.id] ?? []).join(" -> ");
-          const mainText = [description?.does, description?.flow].filter(Boolean).join(" ");
+          const mainText = stagePresentationTexts[stage.id] ?? [description?.does, description?.flow].filter(Boolean).join(" ");
           const runtimeText = result?.message ? `Runtime: ${result.message}` : "Runtime: scenario ishga tushganda real natija shu yerda chiqadi.";
           const outcome = [description?.result, runtimeText, result?.output_ref ? `Output: ${result.output_ref}` : ""].filter(Boolean).join(" ");
 
@@ -1206,7 +1227,7 @@ function ScenarioStepNotes({
               <span className="scenarioStepBody">
                 <strong>{stage.label}</strong>
                 <em>{stage.layer} | {status.toUpperCase()}</em>
-                <small>{mainText}</small>
+                <small><span>Prezentatsiya matni</span>{mainText}</small>
                 <code>{processSummary}</code>
                 <b>{outcome}</b>
               </span>
