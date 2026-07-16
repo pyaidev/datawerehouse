@@ -75,8 +75,7 @@ const stageCatalog: StageMeta[] = [
   { id: "fastapi", label: "FastAPI", layer: "Gateway", detail: "API orqali source data extract qiladi", icon: "api", color: "#159570" },
   { id: "nifi", label: "Apache NiFi", layer: "Flow", detail: "Routing va flow orchestration", icon: "route", color: "#64748b" },
   { id: "kafka", label: "Apache Kafka", layer: "Stream", detail: "Ingestion event topicga yoziladi", icon: "stream", color: "#252b36" },
-  { id: "landing", label: "MinIO Landing", layer: "Object", detail: "Original payload landing bucketga yoziladi", icon: "bucket", color: "#2e8b57" },
-  { id: "raw", label: "MinIO Raw", layer: "Lake", detail: "Normalized raw rows saqlanadi", icon: "database", color: "#0f766e" },
+  { id: "landing", label: "MinIO Landing / Raw", layer: "Lake", detail: "Original payload va raw rows MinIO ga yoziladi", icon: "bucket", color: "#2e8b57" },
   { id: "preparation", label: "Data Preparation", layer: "Prepare", detail: "Profiling va version draft yaratish", icon: "workflow", color: "#0e7490" },
   { id: "imputation", label: "Imputatsiya / Edit", layer: "Prepare", detail: "Bo'sh qiymatlarni to'ldirish va operator edit", icon: "code", color: "#b45309" },
   { id: "gx", label: "Great Expectations", layer: "Quality", detail: "Record, schema va null check", icon: "shield", color: "#16a34a" },
@@ -101,12 +100,11 @@ const scenarioNodes: ScenarioNode[] = [
   { id: "nifi", x: 220, y: 240 },
   { id: "kafka", x: 355, y: 240 },
   { id: "landing", x: 490, y: 240 },
-  { id: "raw", x: 625, y: 240 },
-  { id: "preparation", x: 760, y: 240 },
-  { id: "imputation", x: 895, y: 240 },
-  { id: "gx", x: 1030, y: 240 },
-  { id: "spark", x: 1165, y: 240 },
-  { id: "curated", x: 1300, y: 240 },
+  { id: "preparation", x: 625, y: 240 },
+  { id: "imputation", x: 760, y: 240 },
+  { id: "gx", x: 895, y: 240 },
+  { id: "spark", x: 1030, y: 240 },
+  { id: "curated", x: 1165, y: 240 },
   { id: "dbt", x: 1300, y: 450 },
   { id: "clickhouse", x: 1150, y: 450 },
   { id: "superset", x: 970, y: 375 },
@@ -122,8 +120,7 @@ const scenarioEdges: ScenarioEdge[] = [
   { from: "fastapi", to: "nifi" },
   { from: "nifi", to: "kafka" },
   { from: "kafka", to: "landing" },
-  { from: "landing", to: "raw" },
-  { from: "raw", to: "preparation" },
+  { from: "landing", to: "preparation" },
   { from: "preparation", to: "imputation" },
   { from: "imputation", to: "gx" },
   { from: "gx", to: "spark" },
@@ -164,8 +161,7 @@ const processMap: Record<string, string[]> = {
   fastapi: ["Request body validate", "DummyJSON endpoint call", "Payload normalize"],
   nifi: ["FlowFile create", "Route source", "Attach metadata"],
   kafka: ["Build event", "Serialize JSON", "Publish to dwh.ingestion.events"],
-  landing: ["Build object key", "Write landing JSON", "Return S3 reference"],
-  raw: ["Normalize collection", "Write raw rows", "Catalog raw object"],
+  landing: ["Write original landing JSON", "Normalize collection rows", "Write raw.json", "Return MinIO paths"],
   preparation: ["RAW_RECEIVED: raw object o'qildi", "PROFILED: column/type profile olindi", "NORMALIZED: trim va null normalize", "VERSION_DRAFT: prepared draft ochildi"],
   imputation: ["NULL_SCAN: bo'sh fieldlarni topish", "IMPUTATION_EDIT: qiymat to'ldirish", "MANUAL_EDIT: operator tuzatishi", "RECORD_VERSION_ID: har record versioni", "READY_FOR_QUALITY: validationga yuborish"],
   gx: ["Record count", "Primary key", "Schema and null threshold"],
@@ -201,9 +197,10 @@ const stageDescriptions: Record<string, StageDescription> = {
     result: "Kafka topic, partition va offset qaytadi; monitoring yoki downstream consumer shu eventdan foydalanishi mumkin.",
   },
   landing: {
-    does: "Tashqi sourcedan kelgan original payloadni o'zgartirmasdan Landing Zone ga saqlaydi.",
-    flow: "FastAPI olgan payload MinIO landing-zone bucketiga JSON object sifatida yoziladi.",
-    result: "Audit va replay uchun original s3 path paydo bo'ladi: landing.json.",
+    does: "MinIO ichida original payload va raw rowlarni bitta data lake bosqichi sifatida saqlaydi.",
+    flow: "Avval original API payload landing.json sifatida yoziladi, keyin collection rows ajratilib raw.json sifatida saqlanadi.",
+    result: "Audit uchun landing nusxa, keyingi Preparation uchun raw rows path tayyor bo'ladi.",
+    note: "Backendda landing va raw write alohida bajariladi; UIda takror ko'rinmasligi uchun bitta stage sifatida ko'rsatiladi.",
   },
   raw: {
     does: "Original payload ichidan collection rows ajratib, raw data lake formatida saqlaydi.",
@@ -293,7 +290,7 @@ const stagePresentationTexts: Record<string, string> = {
   fastapi: "Nima uchun kerak: barcha source'lar Data Warehousega bitta nazoratli kirish nuqtasi orqali kirishi kerak. FastAPI requestni qabul qiladi, source va limitni tekshiradi, lokal test API'dan null qiymatlari bor JSON payload oladi. Bu step data oqimini boshlaydi va keyingi bosqichlarga run_id bilan bir xil formatda uzatadi.",
   nifi: "Nima uchun kerak: productionda source'lar ko'p bo'ladi va ularni qo'lda ulash qiyin. NiFi routing, filtering va flow boshqaruvi uchun kerak. Demo ichida bu alohida ishga tushmagan, lekin real tizimda qaysi source qayerga borishini NiFi boshqaradi.",
   kafka: "Nima uchun kerak: pipeline ichidagi hodisalar yo'qolmasligi va boshqa servislar xabardor bo'lishi kerak. Kafka dataning o'zini emas, ingestion eventni uzatadi: run_id, source, mode va records soni. Bu monitoring, retry va real-time consumerlar uchun signal vazifasini bajaradi.",
-  landing: "Nima uchun kerak: manbadan kelgan original JSON albatta saqlanib qolishi kerak. Landing Zone datani o'zgartirmaydi, faqat asl nusxani saqlaydi. Keyin xato chiqsa yoki audit kerak bo'lsa, manbadan aynan nima kelganini shu joydan ko'ramiz.",
+  landing: "Nima uchun kerak: bu bosqich original payload va ishlov beriladigan raw rowlarni MinIO data lake ichida birga saqlaydi. Landing qismi audit uchun asl JSONni saqlaydi, Raw qismi esa keyingi Data Preparation ishlashi uchun row formatni tayyorlaydi. Shu sababli UIda bitta MinIO Landing / Raw step sifatida ko'rsatiladi.",
   raw: "Nima uchun kerak: original payload ko'pincha ichma-ich JSON bo'ladi, pipeline esa rowlar bilan ishlaydi. Raw Zone collectionni ajratadi va xom rowlar sifatida saqlaydi. Bu hali biznes model emas, lekin keyingi profiling va tozalash uchun qulay format.",
   preparation: "Nima uchun kerak: xom rowni bevosita DWHga yuborish xavfli. Data Preparation columnlarni profil qiladi, type va bo'sh qiymatlarni ko'radi, stringlarni tozalaydi va prepared draft yaratadi. Raw data buzilmaydi, yangi prepared version keyingi stepga beriladi.",
   imputation: "Nima uchun kerak: DWHga null yoki sifatsiz qiymatlar nazoratsiz ketmasligi kerak. Bu step missing fieldlarni topadi, hisoblangan/default qiymat bilan to'ldiradi va kerak bo'lsa operator qo'lda tuzatadi. Shu joyda flow to'xtab, prepared version tanlangandan keyin qualityga o'tadi.",
@@ -325,8 +322,7 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
     artifacts: { flow_script: "nifi/create_dummyjson_flow.py", service_url: "http://localhost:8080" },
   },
   kafka: { artifacts: { topic: "dwh.ingestion.events", code: "backend/app/kafka_bus.py" } },
-  landing: { artifacts: { storage: "MinIO", console: "http://localhost:9001", bucket: "landing-zone" } },
-  raw: { artifacts: { storage: "MinIO", console: "http://localhost:9001", bucket: "raw-zone" } },
+  landing: { artifacts: { storage: "MinIO", console: "http://localhost:9001", buckets: ["landing-zone", "raw-zone"], objects: ["landing.json", "raw.json"] } },
   preparation: {
     input_ref: "MinIO raw-zone/{source}/{run_id}/raw.json",
     output_ref: "MinIO raw-zone/{source}/{run_id}/prepared.json",
@@ -399,7 +395,6 @@ const PLAYBACK_ORDER = [
   "nifi",
   "kafka",
   "landing",
-  "raw",
   "preparation",
   "imputation",
   "gx",
@@ -450,6 +445,41 @@ export function Dashboard() {
   const stageResults = useMemo(() => {
     const map = new Map<string, StageResult>();
     result?.stages.forEach((stage) => map.set(stage.id, stage));
+    const landing = map.get("landing");
+    const raw = map.get("raw");
+    if (landing && raw) {
+      const combinedStatus = landing.status === "error" || raw.status === "error"
+        ? "error"
+        : landing.status === "warning" || raw.status === "warning"
+          ? "warning"
+          : "done";
+      map.set("landing", {
+        ...landing,
+        name: "MinIO Landing / Raw write",
+        status: combinedStatus,
+        message: `${landing.message}; ${raw.message}`,
+        ended_at: raw.ended_at,
+        duration_ms: landing.duration_ms + raw.duration_ms,
+        data_size_bytes: landing.data_size_bytes + raw.data_size_bytes,
+        input_preview: landing.input_preview,
+        output_ref: raw.output_ref ?? landing.output_ref,
+        output_preview: {
+          landing: landing.output_preview,
+          raw: raw.output_preview,
+        },
+        metrics: {
+          ...(landing.metrics ?? {}),
+          raw_records_written: raw.metrics?.records_written,
+          raw_object_count: raw.metrics?.object_count,
+        },
+        artifacts: {
+          ...(landing.artifacts ?? {}),
+          raw_artifacts: raw.artifacts,
+          raw_output_ref: raw.output_ref,
+        },
+        warnings: [...(landing.warnings ?? []), ...(raw.warnings ?? [])],
+      });
+    }
     const preparation = map.get("preparation");
     if (preparation && !map.has("imputation")) {
       map.set("imputation", {
