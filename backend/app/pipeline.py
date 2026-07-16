@@ -14,6 +14,7 @@ from .preparation import prepare_rows
 from .quality import validate_rows
 from .schemas import PipelineRunRequest, PipelineRunResult, StageResult
 from .sources import get_source
+from .test_api_data import local_null_products
 from .storage import ObjectStore
 from .transform import curate_rows, normalize_payload
 
@@ -163,6 +164,8 @@ class PipelineRunner:
         extract_url = f"{self.settings.dummyjson_base_url}{source['endpoint']}"
 
         async def extract() -> dict[str, Any]:
+            if source.get("local_test"):
+                return local_null_products(limit=request.limit)
             async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.get(extract_url, params={"limit": request.limit})
                 response.raise_for_status()
@@ -528,7 +531,7 @@ def build_lineage(
         lineage.append(
             {
                 "record_id": str(source_id),
-                "source": {"system": "DummyJSON", "entity": source, "id": source_id},
+                "source": {"system": "Local Test API" if source == "local_null_products" else "DummyJSON", "entity": source, "id": source_id},
                 "raw": raw,
                 "prepared": prepared,
                 "curated": curated,
@@ -541,3 +544,4 @@ def build_lineage(
             }
         )
     return lineage
+

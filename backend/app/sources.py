@@ -1,4 +1,11 @@
-﻿SOURCES = {
+SOURCES = {
+    "local_null_products": {
+        "title": "Local Test API - Null Products",
+        "endpoint": "/test-api/products-null",
+        "collection": "products",
+        "entity": "product",
+        "local_test": True,
+    },
     "products": {
         "title": "eStat 4.0",
         "endpoint": "/products",

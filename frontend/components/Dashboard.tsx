@@ -622,8 +622,11 @@ export function Dashboard() {
   function handleStageSelect(stage: StageMeta) {
     setActiveStage(stage);
     if (stage.id === "fastapi" || stage.id === "api") {
-      const endpoint = sources[source]?.endpoint ?? "/products";
-      const url = `https://dummyjson.com${endpoint}`;
+      const selectedSource = sources[source];
+      const endpoint = selectedSource?.endpoint ?? "/products";
+      const url = selectedSource?.local_test
+        ? `/api/backend${endpoint}?limit=${limit}`
+        : `https://dummyjson.com${endpoint}`;
       addLog(`OPEN_TEST_API_JSON: ${url}`);
       window.open(url, "_blank", "noopener,noreferrer");
     }
@@ -1252,7 +1255,7 @@ function ExecutionTimeline({
                 <small>{stage.message}</small>
               </span>
               <span className="timelineMeta">
-                <em>{formatBytes(stage.data_size_bytes)} · {stage.data_format}</em>
+                <em>{formatBytes(stage.data_size_bytes)} | {stage.data_format}</em>
                 <b>{stage.duration_ms} ms</b>
               </span>
             </button>
@@ -2149,7 +2152,7 @@ function pickComparableRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function formatDiffValue(value: unknown): string {
-  if (value === undefined) return "—";
+  if (value === undefined) return "--";
   const formatted = typeof value === "object" ? JSON.stringify(value) : String(value);
   return formatted.length > 90 ? formatted.slice(0, 90) + "..." : formatted;
 }
@@ -2276,3 +2279,4 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   server: <><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" /><path d="M8 7h0M8 17h0" /></>,
   close: <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>,
 };
+

@@ -3,6 +3,7 @@ export type SourceDefinition = {
   endpoint: string;
   collection: string;
   entity: string;
+  local_test?: boolean;
 };
 
 export type SourcesResponse = Record<string, SourceDefinition>;
@@ -73,3 +74,4 @@ export type HealthResponse = {
   status: string;
   environment: string;
 };
+

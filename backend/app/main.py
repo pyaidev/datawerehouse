@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from starlette.responses import Response
@@ -7,6 +7,7 @@ from .config import get_settings
 from .pipeline import PipelineRunner
 from .schemas import PipelineRunRequest, PipelineRunResult
 from .sources import SOURCES
+from .test_api_data import local_null_products
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, version="1.0.0")
@@ -31,6 +32,11 @@ def health() -> dict:
 @app.get("/sources")
 def sources() -> dict:
     return SOURCES
+
+
+@app.get("/test-api/products-null")
+def test_products_null(limit: int = 20, skip: int = 0) -> dict:
+    return local_null_products(limit=limit, skip=skip)
 
 
 @app.post("/pipeline/run", response_model=PipelineRunResult)
