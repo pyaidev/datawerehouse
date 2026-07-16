@@ -1030,14 +1030,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   -webkit-line-clamp: 8;
   -webkit-box-orient: vertical;
 }
-.scenarioStepBody small span {
-  display: block;
-  margin-bottom: 4px;
-  color: #0f766e;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
+
 .scenarioStepBody code {
   display: -webkit-box;
   overflow: hidden;

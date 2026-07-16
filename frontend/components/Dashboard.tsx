@@ -1227,7 +1227,7 @@ function ScenarioStepNotes({
               <span className="scenarioStepBody">
                 <strong>{stage.label}</strong>
                 <em>{stage.layer} | {status.toUpperCase()}</em>
-                <small><span>Prezentatsiya matni</span>{mainText}</small>
+                <small>{mainText}</small>
                 <code>{processSummary}</code>
                 <b>{outcome}</b>
               </span>
