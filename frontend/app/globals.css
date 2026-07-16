@@ -1328,3 +1328,5 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   .reportFooter { align-items: stretch; flex-direction: column; }
   .lineageSelector { width: 100%; }
 }
+
+.stopButton { color: #b42318; background: #fff1f1; border-color: #f0b9b9; } .stopButton:disabled { color: #9aa3af; background: #f3f5f7; border-color: #d8dee7; }

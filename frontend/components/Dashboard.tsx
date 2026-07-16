@@ -600,6 +600,14 @@ export function Dashboard() {
     addLog(`VERSION_SELECTED: ${selectedVersionId}; flow Great Expectations stepga davom etadi.`);
     schedulePlaybackStep(playbackIndexRef.current + 1, 0);
   }
+
+  function stopPlaybackAtCurrentStep() {
+    clearPlaybackTimers();
+    setPlaybackRunning(false);
+    setAwaitingVersionSelection(false);
+    const stoppedStage = playbackStageId ?? activeStage?.id ?? "current step";
+    addLog("STOPPED_BY_USER: " + stoppedStage + " stepda qo'lda to'xtatildi.");
+  }
   return (
     <main className="shell">
       <header className="topbar">
@@ -680,6 +688,7 @@ export function Dashboard() {
             <div className="panelActions">
               {result && <span className={`playbackBadge ${playbackRunning ? "running" : ""}`}>{Math.max(playbackPosition, 0)}/{playbackTotal}</span>}
               <span className="stepDuration"><Icon name="clock" /> 3 soniya / step</span>
+              <button className="smallButton stopButton" onClick={stopPlaybackAtCurrentStep} disabled={!playbackRunning}><Icon name="close" /> Stop step</button>
               <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running || playbackRunning}><Icon name="play" /> Qayta ko'rish</button>
               <button className="iconButton" onClick={loadInitial} disabled={running} aria-label="Backend statusini yangilash" title="Backend statusini yangilash"><Icon name="refresh" /></button>
             </div>
@@ -2083,6 +2092,7 @@ function StatusPill({ label, value, ok }: { label: string; value: string; ok: bo
 
 function Icon({ name }: { name: IconName }) {
   const path = iconPaths[name] || iconPaths.server;
+
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {path}
