@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { HealthResponse, LineageRecord, ManualCorrection, PipelineResult, QualityCheck, SourcesResponse, StageResult } from "../lib/types";
@@ -398,7 +398,7 @@ const PLAYBACK_ORDER = [
 export function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [sources, setSources] = useState<SourcesResponse>({});
-  const [source, setSource] = useState("products");
+  const [source, setSource] = useState("local_null_products");
   const [mode, setMode] = useState<Mode>("api");
   const [limit, setLimit] = useState(20);
   const [failureStage, setFailureStage] = useState<FailureStage>("none");
@@ -623,8 +623,9 @@ export function Dashboard() {
     setActiveStage(stage);
     if (stage.id === "fastapi" || stage.id === "api") {
       const selectedSource = sources[source];
-      const endpoint = selectedSource?.endpoint ?? "/products";
-      const url = selectedSource?.local_test
+      const isLocalTest = source === "local_null_products" || selectedSource?.local_test;
+      const endpoint = selectedSource?.endpoint ?? (isLocalTest ? "/test-api/products-null" : "/products");
+      const url = isLocalTest
         ? `/api/backend${endpoint}?limit=${limit}`
         : `https://dummyjson.com${endpoint}`;
       addLog(`OPEN_TEST_API_JSON: ${url}`);
@@ -2279,4 +2280,6 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   server: <><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" /><path d="M8 7h0M8 17h0" /></>,
   close: <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>,
 };
+
+
 
