@@ -240,7 +240,7 @@ const stageDescriptions: Record<string, StageDescription> = {
 const stagePresentationTexts: Record<string, string> = {
   fastapi: "Nima uchun kerak: barcha source data bitta nazoratli kirish nuqtasidan o\'tishi kerak. FastAPI requestni qabul qiladi, source va limitni tekshiradi, lokal test API\'dan null qiymatlari bor JSON payload oladi va pipeline uchun run_id bilan ishni boshlaydi.",
   nifi: "Nima uchun kerak: productionda source'lar ko'p bo'ladi va ularni qo'lda ulash qiyin. NiFi routing, filtering va flow boshqaruvi uchun kerak. Demo ichida bu alohida ishga tushmagan, lekin real tizimda qaysi source qayerga borishini NiFi boshqaradi.",
-  kafka: "Nima uchun kerak: source kop bolsa routing va event signal alohida boshqarilishi kerak. NiFi data oqimini marshrutlash goyasini beradi, Kafka esa ingestion eventni uzatadi. Shu sababli UIda ular bitta NiFi / Kafka Ingestion stepida korsatiladi.",
+  kafka: "Nima uchun kerak: source kop bolsa routing va event signal alohida boshqarilishi kerak. NiFi data oqimini marshrutlash goyasini beradi, Kafka esa ingestion eventni uzatadi.",
   landing: "Nima uchun kerak: bu bosqich original payload va ishlov beriladigan raw rowlarni MinIO data lake ichida birga saqlaydi. Landing qismi audit uchun asl JSONni saqlaydi, Raw qismi esa keyingi Data Preparation ishlashi uchun row formatni tayyorlaydi. Shu sababli UIda bitta MinIO Landing / Raw step sifatida ko'rsatiladi.",
   raw: "Nima uchun kerak: original payload ko'pincha ichma-ich JSON bo'ladi, pipeline esa rowlar bilan ishlaydi. Raw Zone collectionni ajratadi va xom rowlar sifatida saqlaydi. Bu hali biznes model emas, lekin keyingi profiling va tozalash uchun qulay format.",
   preparation: "Nima uchun kerak: xom data DWHga togridan-togri ketmasligi kerak. Bu step profiling, cleanup, null imputation, manual edit va version tanlashni bitta nazorat nuqtasiga yigadi. Quality gatega faqat tanlangan prepared version otadi.",
@@ -757,6 +757,7 @@ export function Dashboard() {
           <StageSidePanel
             stage={activeStage}
             result={activeStageResult}
+            pipelineResult={result}
             active={Boolean(activeStage && playbackStageId === activeStage.id)}
             awaitingVersionSelection={awaitingVersionSelection}
             selectedVersionId={selectedVersionId}
@@ -1563,6 +1564,7 @@ function scenarioPath(from: ScenarioNode, to: ScenarioNode): string {
 function StageSidePanel({
   stage,
   result,
+  pipelineResult,
   active,
   awaitingVersionSelection,
   selectedVersionId,
@@ -1571,6 +1573,7 @@ function StageSidePanel({
 }: {
   stage: StageMeta | null;
   result?: StageResult;
+  pipelineResult: PipelineResult | null;
   active: boolean;
   awaitingVersionSelection: boolean;
   selectedVersionId: string | null;
@@ -1608,6 +1611,7 @@ function StageSidePanel({
           onSelectVersion={onSelectVersion}
           onContinue={onContinue}
         />
+        <DeliveryResultPanel stage={stage} result={pipelineResult} deliveryStage={result} />
         <StageInspector stage={stage} result={result} fallback={staticStageDetails[stage.id]} />
       </div>
     </section>
@@ -1943,6 +1947,115 @@ function StageRunState({ stage, result }: { stage: StageMeta; result?: StageResu
   );
 }
 
+function DeliveryResultPanel({
+  stage,
+  result,
+  deliveryStage,
+}: {
+  stage: StageMeta;
+  result: PipelineResult | null;
+  deliveryStage?: StageResult;
+}) {
+  if (stage.id !== "api") return null;
+
+  const rows = result?.curated_preview ?? [];
+  const clickhouseStage = result?.stages.find((item) => item.id === "clickhouse");
+  const postgresStage = result?.stages.find((item) => item.id === "postgres");
+  const status = result?.status ?? "waiting";
+  const totalMetric = rows.reduce((sum, row) => sum + Number(row.metric_value ?? row.price ?? row.total ?? 0), 0);
+  const categories = rows.reduce<Record<string, number>>((acc, row) => {
+    const key = String(row.category ?? row.entity_name ?? row.status ?? "other");
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+  const categoryRows = Object.entries(categories).slice(0, 5);
+  const maxCategory = Math.max(1, ...categoryRows.map(([, count]) => count));
+  const apiResponse = result ? {
+    status: result.status,
+    run_id: result.run_id,
+    source: result.source,
+    records: result.records,
+    quality_score: result.quality_score,
+    dashboard_rows: rows.slice(0, 3),
+  } : {
+    status: "waiting",
+    message: "Run scenario tugagandan keyin real API response shu yerda chiqadi.",
+  };
+  const uploadResult = result ? {
+    clickhouse_table: "dwh.curated_events",
+    uploaded_records: result.records,
+    curated_fields: result.curated_fields,
+    storage_path: clickhouseStage?.output_ref ?? "ClickHouse output kutilmoqda",
+    audit: postgresStage?.output_ref ?? "PostgreSQL audit kutilmoqda",
+  } : {
+    clickhouse_table: "dwh.curated_events",
+    uploaded_records: 0,
+    storage_path: "kutilmoqda",
+  };
+
+  return (
+    <section className="deliveryResultPanel">
+      <div className="detailTitle">
+        <Icon name="globe" />
+        <strong>Final dashboard / API / upload result</strong>
+        <span className={["deliveryStatus", status].join(" ")}>{result ? status.toUpperCase() : "WAITING"}</span>
+      </div>
+
+      <div className="deliveryKpis">
+        <ReportValue label="Dashboard rows" value={String(rows.length)} />
+        <ReportValue label="API records" value={String(result?.records ?? 0)} />
+        <ReportValue label="Quality" value={`${result?.quality_score ?? 0}%`} />
+        <ReportValue label="Total metric" value={totalMetric ? totalMetric.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "0"} />
+      </div>
+
+      <div className="deliveryDashboardPreview">
+        <div className="deliveryMiniChart">
+          <strong>Dashboard preview</strong>
+          {categoryRows.length ? categoryRows.map(([label, count]) => (
+            <div className="deliveryBar" key={label}>
+              <span>{label}</span>
+              <i style={{ width: `${Math.max(12, Math.round((count / maxCategory) * 100))}%` }} />
+              <b>{count}</b>
+            </div>
+          )) : <p>Curated data hali yo'q.</p>}
+        </div>
+        <div className="deliveryTableMini">
+          <strong>Real data result</strong>
+          <div>
+            {rows.slice(0, 4).map((row, index) => (
+              <span key={String(row.dw_id ?? row.id ?? index)}>
+                <b>{String(row.entity_name ?? row.title ?? row.id ?? `row-${index + 1}`)}</b>
+                <em>{String(row.category ?? row.status ?? "ready")}</em>
+                <code>{formatCell(row.metric_value ?? row.price ?? row.total ?? row.dw_id)}</code>
+              </span>
+            ))}
+            {!rows.length && <p>Scenario tugagandan keyin DWHdan kelgan preview rows shu yerda chiqadi.</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="deliveryResultGrid">
+        <article>
+          <span><Icon name="api" /> API response</span>
+          <code>GET /api/backend/pipeline/run/{result?.run_id?.slice(0, 8) ?? "{run_id}"}/result</code>
+          <JsonBlock value={apiResponse} />
+        </article>
+        <article>
+          <span><Icon name="warehouse" /> Upload / DWH load</span>
+          <code>{clickhouseStage?.message ?? deliveryStage?.message ?? "ClickHouse load result kutilmoqda"}</code>
+          <JsonBlock value={uploadResult} />
+        </article>
+      </div>
+
+      <div className="deliveryEndpoints">
+        <span><Icon name="download" /> Export</span>
+        <code>/exports/{result?.run_id ?? "run_id"}/curated.csv</code>
+        <code>/exports/{result?.run_id ?? "run_id"}/dashboard.json</code>
+        <small>{result ? `${formatBytes(clickhouseStage?.data_size_bytes ?? 0)} uploaded, ${formatDuration(result.duration_ms)} total runtime` : "Run tugagandan keyin export pathlar real run_id bilan chiqadi."}</small>
+      </div>
+    </section>
+  );
+}
 function StageInspector({ stage, result, fallback }: { stage: StageMeta; result?: StageResult; fallback?: StaticStageDetail }) {
   const metrics = { ...(fallback?.metrics ?? {}), ...(result?.metrics ?? {}) };
   const artifacts = { ...(fallback?.artifacts ?? {}), ...(result?.artifacts ?? {}) };

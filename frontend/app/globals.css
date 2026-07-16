@@ -1565,3 +1565,76 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 }
 
 .stopButton { color: #b42318; background: #fff1f1; border-color: #f0b9b9; } .stopButton:disabled { color: #9aa3af; background: #f3f5f7; border-color: #d8dee7; }
+
+.deliveryResultPanel {
+  margin: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid #b8d5ff;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f5f9ff 0%, #ffffff 100%);
+}
+.deliveryStatus {
+  margin-left: auto;
+  padding: 4px 7px;
+  border-radius: 4px;
+  color: #234f76;
+  background: #e7f0ff;
+  font-size: 9px;
+  font-weight: 900;
+}
+.deliveryStatus.done { color: #0e7144; background: #e5f6ee; }
+.deliveryStatus.warning { color: #79500f; background: #fff2d8; }
+.deliveryStatus.error { color: #962f2f; background: #fdeaea; }
+.deliveryKpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+  background: #fff;
+}
+.deliveryKpis .reportValue { padding: 9px; }
+.deliveryKpis .reportValue:nth-child(2n) { border-right: 0; }
+.deliveryKpis .reportValue:nth-last-child(-n + 2) { border-bottom: 0; }
+.deliveryDashboardPreview { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.deliveryMiniChart,
+.deliveryTableMini,
+.deliveryResultGrid article,
+.deliveryEndpoints {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.deliveryMiniChart > strong,
+.deliveryTableMini > strong { font-size: 11px; }
+.deliveryBar { display: grid; grid-template-columns: minmax(72px, 1fr) 2fr 28px; align-items: center; gap: 7px; font-size: 10px; }
+.deliveryBar span { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.deliveryBar i { height: 8px; display: block; background: linear-gradient(90deg, #2563eb, #15a37f); border-radius: 999px; }
+.deliveryBar b { text-align: right; }
+.deliveryTableMini div { display: grid; gap: 6px; }
+.deliveryTableMini span { min-width: 0; padding: 7px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 6px; align-items: center; background: #f8fafc; border: 1px solid var(--line); border-radius: 6px; }
+.deliveryTableMini b { min-width: 0; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.deliveryTableMini em { color: #0e7144; font-size: 9px; font-style: normal; font-weight: 900; }
+.deliveryTableMini code { grid-column: 1 / -1; overflow-wrap: anywhere; color: #174477; font-size: 9px; }
+.deliveryResultGrid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.deliveryResultGrid article > span,
+.deliveryEndpoints > span { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 900; }
+.deliveryResultGrid article > span svg,
+.deliveryEndpoints > span svg { width: 15px; height: 15px; color: var(--blue); }
+.deliveryResultGrid article > code,
+.deliveryEndpoints code {
+  padding: 7px;
+  overflow-wrap: anywhere;
+  color: #174477;
+  background: #edf4ff;
+  border-radius: 5px;
+  font-size: 9px;
+}
+.deliveryResultGrid .jsonBlock { max-height: 220px; font-size: 9px; }
+.deliveryEndpoints small { color: var(--muted); font-size: 10px; line-height: 1.4; }
