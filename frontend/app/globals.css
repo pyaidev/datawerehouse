@@ -570,6 +570,69 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   font-size: 10px;
   line-height: 1.4;
 }
+.recordVersionRow {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.recordVersionRow.selected {
+  background: #edf4ff;
+  border-color: #3274e8;
+  border-left-color: #3274e8;
+  box-shadow: 0 0 0 3px rgba(50, 116, 232, 0.12);
+}
+.recordVersionRow.selected b {
+  color: #1557bd;
+  background: #dceaff;
+}
+.versionGateControl {
+  padding: 9px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.versionGateControl.paused {
+  background: #fff8e8;
+  border-color: #e8c06b;
+}
+.versionGateControl div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.versionGateControl strong {
+  font-size: 11px;
+}
+.versionGateControl span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.versionGateControl button {
+  min-height: 34px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  background: #1557bd;
+  border: 1px solid #1557bd;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 900;
+}
+.versionGateControl button:disabled {
+  cursor: not-allowed;
+  color: #8993a2;
+  background: #e9edf2;
+  border-color: #d8dee7;
+}
 .prepVersionTimeline {
   display: grid;
   gap: 7px;

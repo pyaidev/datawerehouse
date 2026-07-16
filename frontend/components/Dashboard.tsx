@@ -413,7 +413,11 @@ export function Dashboard() {
   const [playbackStageId, setPlaybackStageId] = useState<string | null>(null);
   const [playbackRunning, setPlaybackRunning] = useState(false);
   const [visitedStageIds, setVisitedStageIds] = useState<string[]>([]);
+  const [awaitingVersionSelection, setAwaitingVersionSelection] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const playbackTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const playbackStagesRef = useRef<StageMeta[]>([]);
+  const playbackIndexRef = useRef(0);
 
   useEffect(() => {
     setFrontendHost(window.location.host);
@@ -473,6 +477,8 @@ export function Dashboard() {
     setPlaybackRunning(false);
     setPlaybackStageId(null);
     setVisitedStageIds([]);
+    setAwaitingVersionSelection(false);
+    setSelectedVersionId(null);
     setActiveStage(null);
     setResult(null);
     setLogs([]);
@@ -530,9 +536,13 @@ export function Dashboard() {
   function startStagePlayback(nextResult: PipelineResult) {
     clearPlaybackTimers();
     const playableStages = getPlaybackStages(nextResult);
+    playbackStagesRef.current = playableStages;
+    playbackIndexRef.current = 0;
 
     setPlaybackStageId(null);
     setVisitedStageIds([]);
+    setAwaitingVersionSelection(false);
+    setSelectedVersionId(null);
     setActiveStage(null);
 
     if (!playableStages.length) {
@@ -541,23 +551,54 @@ export function Dashboard() {
     }
 
     setPlaybackRunning(true);
-    playableStages.forEach((stage, index) => {
-      const timer = setTimeout(() => {
-        setPlaybackStageId(stage.id);
-        setVisitedStageIds((current) => current.includes(stage.id) ? current : [...current, stage.id]);
-        setActiveStage(stage);
-        addLog(`animation: ${index + 1}/${playableStages.length} ${stage.id}`);
+    schedulePlaybackStep(0, 0);
+  }
 
-        if (index === playableStages.length - 1) {
-          const endTimer = setTimeout(() => {
-            setPlaybackRunning(false);
-            setPlaybackStageId(null);
-          }, PLAYBACK_STEP_MS);
-          playbackTimers.current.push(endTimer);
-        }
-      }, index * PLAYBACK_STEP_MS);
-      playbackTimers.current.push(timer);
-    });
+  function schedulePlaybackStep(index: number, delay = PLAYBACK_STEP_MS) {
+    const timer = setTimeout(() => {
+      const stage = playbackStagesRef.current[index];
+      if (!stage) {
+        setPlaybackRunning(false);
+        setPlaybackStageId(null);
+        return;
+      }
+
+      playbackIndexRef.current = index;
+      setPlaybackStageId(stage.id);
+      setVisitedStageIds((current) => current.includes(stage.id) ? current : [...current, stage.id]);
+      setActiveStage(stage);
+      addLog(`animation: ${index + 1}/${playbackStagesRef.current.length} ${stage.id}`);
+
+      if (stage.id === "imputation") {
+        setPlaybackRunning(false);
+        setAwaitingVersionSelection(true);
+        addLog("WAITING_VERSION_SELECTION: Imputatsiya/Edit stepda to'xtadi. Version tanlang va davom ettiring.");
+        return;
+      }
+
+      if (index === playbackStagesRef.current.length - 1) {
+        const endTimer = setTimeout(() => {
+          setPlaybackRunning(false);
+          setPlaybackStageId(null);
+        }, PLAYBACK_STEP_MS);
+        playbackTimers.current.push(endTimer);
+        return;
+      }
+
+      schedulePlaybackStep(index + 1);
+    }, delay);
+    playbackTimers.current.push(timer);
+  }
+
+  function continueAfterVersionSelection() {
+    if (!selectedVersionId) {
+      addLog("Version tanlanmagan: davom etish uchun record version ID ni tanlang.");
+      return;
+    }
+    setAwaitingVersionSelection(false);
+    setPlaybackRunning(true);
+    addLog(`VERSION_SELECTED: ${selectedVersionId}; flow Great Expectations stepga davom etadi.`);
+    schedulePlaybackStep(playbackIndexRef.current + 1, 0);
   }
   return (
     <main className="shell">
@@ -665,6 +706,10 @@ export function Dashboard() {
             stage={activeStage}
             result={activeStageResult}
             active={Boolean(activeStage && playbackStageId === activeStage.id)}
+            awaitingVersionSelection={awaitingVersionSelection}
+            selectedVersionId={selectedVersionId}
+            onSelectVersion={setSelectedVersionId}
+            onContinue={continueAfterVersionSelection}
           />
 
           <section className="panel summaryPanel">
@@ -1355,10 +1400,18 @@ function StageSidePanel({
   stage,
   result,
   active,
+  awaitingVersionSelection,
+  selectedVersionId,
+  onSelectVersion,
+  onContinue,
 }: {
   stage: StageMeta | null;
   result?: StageResult;
   active: boolean;
+  awaitingVersionSelection: boolean;
+  selectedVersionId: string | null;
+  onSelectVersion: (versionId: string) => void;
+  onContinue: () => void;
 }) {
   if (!stage) {
     return (
@@ -1383,14 +1436,35 @@ function StageSidePanel({
         <StageRunState stage={stage} result={result} />
         <StageProcessSidebar stage={stage} result={result} active={active} />
         <StageDescriptionBlock stage={stage} />
-        <PreparationLifecycle stage={stage} result={result} />
+        <PreparationLifecycle
+          stage={stage}
+          result={result}
+          awaitingVersionSelection={awaitingVersionSelection}
+          selectedVersionId={selectedVersionId}
+          onSelectVersion={onSelectVersion}
+          onContinue={onContinue}
+        />
         <StageInspector stage={stage} result={result} fallback={staticStageDetails[stage.id]} />
       </div>
     </section>
   );
 }
 
-function PreparationLifecycle({ stage, result }: { stage: StageMeta; result?: StageResult }) {
+function PreparationLifecycle({
+  stage,
+  result,
+  awaitingVersionSelection,
+  selectedVersionId,
+  onSelectVersion,
+  onContinue,
+}: {
+  stage: StageMeta;
+  result?: StageResult;
+  awaitingVersionSelection: boolean;
+  selectedVersionId: string | null;
+  onSelectVersion: (versionId: string) => void;
+  onContinue: () => void;
+}) {
   if (stage.id !== "preparation" && stage.id !== "imputation") return null;
 
   const metrics = result?.metrics ?? {};
@@ -1533,36 +1607,54 @@ function PreparationLifecycle({ stage, result }: { stage: StageMeta; result?: St
           <span>{recordVersions.length || 0} record preview</span>
         </div>
         <div className="recordVersionRows">
-          {recordVersions.length ? recordVersions.map((item) => (
-            <article key={item.recordId} className="recordVersionRow">
-              <span>
-                <strong>record_id</strong>
-                <code>{item.recordId}</code>
-              </span>
-              <span>
-                <strong>Raw</strong>
-                <code>{item.rawVersion}</code>
-              </span>
-              <span>
-                <strong>Prepared</strong>
-                <code>{item.preparedVersion}</code>
-              </span>
-              <span>
-                <strong>Quality</strong>
-                <code>{item.qualityVersion}</code>
-              </span>
-              <span>
-                <strong>DWH</strong>
-                <code>{item.dwhVersion}</code>
-              </span>
-              <b>{item.status}</b>
-            </article>
-          )) : (
+          {recordVersions.length ? recordVersions.map((item) => {
+            const selected = selectedVersionId === item.preparedVersion;
+            return (
+              <button
+                type="button"
+                key={item.recordId}
+                className={["recordVersionRow", selected ? "selected" : ""].join(" ")}
+                onClick={() => onSelectVersion(item.preparedVersion)}
+              >
+                <span>
+                  <strong>record_id</strong>
+                  <code>{item.recordId}</code>
+                </span>
+                <span>
+                  <strong>Raw</strong>
+                  <code>{item.rawVersion}</code>
+                </span>
+                <span>
+                  <strong>Prepared tanlanadi</strong>
+                  <code>{item.preparedVersion}</code>
+                </span>
+                <span>
+                  <strong>Quality</strong>
+                  <code>{item.qualityVersion}</code>
+                </span>
+                <span>
+                  <strong>DWH</strong>
+                  <code>{item.dwhVersion}</code>
+                </span>
+                <b>{selected ? "SELECTED_VERSION" : item.status}</b>
+              </button>
+            );
+          }) : (
             <article className="recordVersionEmpty">Pipeline ishga tushgandan keyin har bir record uchun version_id lar shu yerda chiqadi.</article>
           )}
         </div>
-      </div>
-      <div className="prepVersionTimeline">
+        {stage.id === "imputation" && (
+          <div className={["versionGateControl", awaitingVersionSelection ? "paused" : ""].join(" ")}>
+            <div>
+              <strong>{awaitingVersionSelection ? "Process shu joyda to'xtadi" : "Version gate"}</strong>
+              <span>{selectedVersionId ? `Tanlangan version: ${selectedVersionId}` : "Prepared version ID tanlang"}</span>
+            </div>
+            <button type="button" onClick={onContinue} disabled={!awaitingVersionSelection || !selectedVersionId}>
+              <Icon name="play" /> Continue to Quality
+            </button>
+          </div>
+        )}
+      </div>      <div className="prepVersionTimeline">
         {versionRows.map((item) => (
           <article key={item.version} className={["prepVersionCard", item.status.toLowerCase()].join(" ")}>
             <span>{item.version}</span>
