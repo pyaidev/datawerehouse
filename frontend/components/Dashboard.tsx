@@ -72,68 +72,41 @@ type IconName =
   | "close";
 
 const stageCatalog: StageMeta[] = [
-  { id: "fastapi", label: "FastAPI", layer: "Gateway", detail: "API orqali source data extract qiladi", icon: "api", color: "#159570" },
-  { id: "nifi", label: "Apache NiFi", layer: "Flow", detail: "Routing va flow orchestration", icon: "route", color: "#64748b" },
-  { id: "kafka", label: "Apache Kafka", layer: "Stream", detail: "Ingestion event topicga yoziladi", icon: "stream", color: "#252b36" },
-  { id: "landing", label: "MinIO Landing / Raw", layer: "Lake", detail: "Original payload va raw rows MinIO ga yoziladi", icon: "bucket", color: "#2e8b57" },
-  { id: "preparation", label: "Data Preparation", layer: "Prepare", detail: "Profiling va version draft yaratish", icon: "workflow", color: "#0e7490" },
-  { id: "imputation", label: "Imputatsiya / Edit", layer: "Prepare", detail: "Bo'sh qiymatlarni to'ldirish va operator edit", icon: "code", color: "#b45309" },
-  { id: "gx", label: "Great Expectations", layer: "Quality", detail: "Record, schema va null check", icon: "shield", color: "#16a34a" },
-  { id: "spark", label: "PySpark", layer: "Compute", detail: "Curated transform job", icon: "spark", color: "#f97316" },
-  { id: "curated", label: "Curated Zone", layer: "Model", detail: "Business schema saqlanadi", icon: "layers", color: "#7c3aed" },
-  { id: "clickhouse", label: "ClickHouse", layer: "DWH", detail: "Analytic warehouse load", icon: "warehouse", color: "#d99b00" },
-  { id: "postgres", label: "PostgreSQL", layer: "ODS", detail: "Run audit va metadata", icon: "database", color: "#336791" },
-  { id: "airflow", label: "Apache Airflow", layer: "Schedule", detail: "DAG orqali trigger qilish uchun", icon: "workflow", color: "#16a3b6" },
-  { id: "dbt", label: "dbt", layer: "SQL", detail: "Staging va mart model", icon: "code", color: "#e85d43" },
-  { id: "superset", label: "Superset", layer: "BI", detail: "Dashboard dataset", icon: "chart", color: "#168f96" },
-  { id: "trino", label: "Trino", layer: "Query", detail: "Ad-hoc SQL gateway", icon: "search", color: "#d94f8a" },
-  { id: "api", label: "API Services", layer: "Serve", detail: "External API output", icon: "api", color: "#0f9f6e" },
-  { id: "portal", label: "Portal", layer: "UI", detail: "Visualization frontend", icon: "globe", color: "#2563eb" },
-  { id: "export", label: "Export", layer: "File", detail: "JSON/CSV/PDF export", icon: "download", color: "#6366f1" },
+  { id: "fastapi", label: "FastAPI Gateway", layer: "Gateway", detail: "Source API dan data qabul qiladi", icon: "api", color: "#159570" },
+  { id: "kafka", label: "NiFi / Kafka Ingestion", layer: "Ingestion", detail: "Flow routing va ingestion event", icon: "stream", color: "#252b36" },
+  { id: "landing", label: "MinIO Landing / Raw", layer: "Data Lake", detail: "Original payload va raw rows MinIO ga yoziladi", icon: "bucket", color: "#2e8b57" },
+  { id: "preparation", label: "Data Preparation / Imputation", layer: "Prepare", detail: "Profiling, null to'ldirish, edit va version", icon: "workflow", color: "#0e7490" },
+  { id: "gx", label: "Quality Gate", layer: "Quality", detail: "DWH oldidan data quality nazorati", icon: "shield", color: "#16a34a" },
+  { id: "spark", label: "Transform / Curated Model", layer: "Model", detail: "Business schema va curated data", icon: "spark", color: "#f97316" },
+  { id: "clickhouse", label: "Warehouse Modeling / ClickHouse", layer: "DWH", detail: "SQL model va analytical warehouse", icon: "warehouse", color: "#d99b00" },
+  { id: "postgres", label: "PostgreSQL Audit", layer: "Audit", detail: "Run metadata va monitoring auditi", icon: "database", color: "#336791" },
+  { id: "api", label: "Visualization / Delivery", layer: "Delivery", detail: "Portal, BI, API, query va export", icon: "globe", color: "#2563eb" },
 ];
 
 const SCENARIO_WIDTH = 1420;
 const SCENARIO_HEIGHT = 700;
 
 const scenarioNodes: ScenarioNode[] = [
-  { id: "fastapi", x: 85, y: 240 },
-  { id: "nifi", x: 220, y: 240 },
-  { id: "kafka", x: 355, y: 240 },
-  { id: "landing", x: 490, y: 240 },
-  { id: "preparation", x: 625, y: 240 },
-  { id: "imputation", x: 760, y: 240 },
-  { id: "gx", x: 895, y: 240 },
-  { id: "spark", x: 1030, y: 240 },
-  { id: "curated", x: 1165, y: 240 },
-  { id: "dbt", x: 1300, y: 450 },
-  { id: "clickhouse", x: 1150, y: 450 },
-  { id: "superset", x: 970, y: 375 },
-  { id: "trino", x: 970, y: 535 },
-  { id: "api", x: 640, y: 455 },
-  { id: "portal", x: 440, y: 370 },
-  { id: "export", x: 440, y: 540 },
-  { id: "postgres", x: 1300, y: 610 },
-  { id: "airflow", x: 1030, y: 70 },
+  { id: "fastapi", x: 95, y: 260 },
+  { id: "kafka", x: 245, y: 260 },
+  { id: "landing", x: 395, y: 260 },
+  { id: "preparation", x: 545, y: 260 },
+  { id: "gx", x: 695, y: 260 },
+  { id: "spark", x: 845, y: 260 },
+  { id: "clickhouse", x: 995, y: 260 },
+  { id: "postgres", x: 1145, y: 260 },
+  { id: "api", x: 1295, y: 260 },
 ];
 
 const scenarioEdges: ScenarioEdge[] = [
-  { from: "fastapi", to: "nifi" },
-  { from: "nifi", to: "kafka" },
+  { from: "fastapi", to: "kafka" },
   { from: "kafka", to: "landing" },
   { from: "landing", to: "preparation" },
-  { from: "preparation", to: "imputation" },
-  { from: "imputation", to: "gx" },
+  { from: "preparation", to: "gx" },
   { from: "gx", to: "spark" },
-  { from: "spark", to: "curated" },
-  { from: "curated", to: "dbt" },
-  { from: "dbt", to: "clickhouse" },
-  { from: "clickhouse", to: "superset", kind: "branch" },
-  { from: "clickhouse", to: "trino", kind: "branch" },
-  { from: "clickhouse", to: "api", kind: "branch" },
-  { from: "api", to: "portal", kind: "branch" },
-  { from: "api", to: "export", kind: "branch" },
-  { from: "clickhouse", to: "postgres", kind: "branch" },
-  { from: "airflow", to: "spark", kind: "control" },
+  { from: "spark", to: "clickhouse" },
+  { from: "clickhouse", to: "postgres" },
+  { from: "postgres", to: "api" },
 ];
 
 const processImages: Record<string, string> = {
@@ -160,20 +133,18 @@ const processImages: Record<string, string> = {
 const processMap: Record<string, string[]> = {
   fastapi: ["Request body validate", "DummyJSON endpoint call", "Payload normalize"],
   nifi: ["FlowFile create", "Route source", "Attach metadata"],
-  kafka: ["Build event", "Serialize JSON", "Publish to dwh.ingestion.events"],
+  kafka: ["NiFi route/source metadata", "Build Kafka event", "Publish ingestion signal", "Notify downstream services"],
   landing: ["Write original landing JSON", "Normalize collection rows", "Write raw.json", "Return MinIO paths"],
-  preparation: ["RAW_RECEIVED: raw object o'qildi", "PROFILED: column/type profile olindi", "NORMALIZED: trim va null normalize", "VERSION_DRAFT: prepared draft ochildi"],
-  imputation: ["NULL_SCAN: bo'sh fieldlarni topish", "IMPUTATION_EDIT: qiymat to'ldirish", "MANUAL_EDIT: operator tuzatishi", "RECORD_VERSION_ID: har record versioni", "READY_FOR_QUALITY: validationga yuborish"],
+  preparation: ["PROFILED: column/type profile", "NORMALIZED: trim/null cleanup", "IMPUTATION_EDIT: null qiymatlarni toldirish", "VERSION_GATE: prepared version tanlash"],
   gx: ["Record count", "Primary key", "Schema and null threshold"],
-  spark: ["Read raw", "Transform dataframe", "Write curated model"],
-  curated: ["Business mapping", "Conformed columns", "Write curated JSON"],
-  clickhouse: ["Create table", "Insert curated batch", "Expose metrics"],
+  spark: ["Read prepared version", "Map business fields", "Create curated model", "Write curated JSON"],
+  clickhouse: ["Apply SQL model", "Create warehouse table", "Insert curated batch", "Expose analytics metrics"],
   postgres: ["Create audit table", "Upsert run", "Store warnings"],
   airflow: ["DAG trigger", "Quality gate", "Lineage print"],
   dbt: ["Build staging", "Build mart", "Run tests"],
   superset: ["Register dataset", "Refresh chart", "Apply access"],
   trino: ["Catalog route", "Plan query", "Stream result"],
-  api: ["Map response", "Return JSON", "Audit request"],
+  api: ["Portal view", "BI/dashboard layer", "API response", "Query/export options"],
   portal: ["Load view model", "Render table", "Render operations"],
   export: ["Select format", "Build file", "Publish download"],
 };
@@ -208,16 +179,10 @@ const stageDescriptions: Record<string, StageDescription> = {
     result: "Keyingi validation va transform uchun normalized raw rows tayyor bo'ladi.",
   },
   preparation: {
-    does: "Raw datani DWH ga yuborishdan oldin profil qiladi, string va bo'sh qiymatlarni normalize qiladi hamda prepared draft version yaratadi.",
-    flow: "Raw rowlar o'zgarmas nusxa sifatida qoladi. Column profile, type inference va basic cleanup bajariladi.",
-    result: "Prepared draft ochiladi va keyingi Imputatsiya / Edit stepga beriladi.",
-    note: "Raw object o'zgarmaydi; keyingi step har bir record uchun version ID bilan ishlaydi.",
-  },
-  imputation: {
-    does: "Bo'sh yoki sifatsiz qiymatlarni topadi, hisoblangan/default qiymat bilan to'ldiradi va operator edit qilgan fieldlarni record versioniga yozadi.",
-    flow: "Prepared draft ichidagi har bir record uchun raw:v0, prep:v1, qa:v2, dwh:v3 version ID ko'rsatiladi. Imputatsiya va manual edit faqat prepared versionda bajariladi.",
-    result: "Imputed count, manual edit audit, record version ID lari va READY_FOR_QUALITY statusi chiqadi. Shundan keyin data Great Expectations validatsiyasiga ketadi.",
-    note: "Bu step Data Preparation ichidagi alohida nazorat nuqtasi: raw buzilmaydi, DWH ga faqat versionlangan prepared data ketadi.",
+    does: "Raw datani DWHga yuborishdan oldin profil qiladi, tozalaydi, null qiymatlarni to'ldiradi, qo'lda edit va prepared version tanlashni boshqaradi.",
+    flow: "Raw rows o'qiladi, column profile olinadi, blank/null qiymatlar normalize qilinadi, imputation rules ishlaydi va operator tanlagan prepared version quality gatega uzatiladi.",
+    result: "Prepared version, imputed values, manual edit audit va record version ID lari tayyor bo'ladi.",
+    note: "Oldingi Data Preparation va Imputatsiya/Edit UI uchun bitta stepga birlashtirildi; backendda metrikalar preparation stage ichida qaytadi.",
   },
   gx: {
     does: "Prepared data sifatini tekshiradi: record count, id mavjudligi, schema bo'sh emasligi va null threshold.",
@@ -225,20 +190,16 @@ const stageDescriptions: Record<string, StageDescription> = {
     result: "Quality score va checks list hosil bo'ladi; UI dagi Quality panel shu natijani ko'rsatadi.",
   },
   spark: {
-    does: "Raw rowsni analytics uchun curated business schema ga aylantiradi.",
-    flow: "Raw rowlarga run metadata qo'shiladi, source turiga qarab entity, category va metric fieldlar mapping qilinadi.",
-    result: "Curated rows hosil bo'ladi; keyin object storage va ClickHouse load shu rows orqali bajariladi.",
-    note: "Manual run ichida Python transform ishlaydi; PySpark job alohida spark-submit uchun tayyorlangan.",
-  },
-  curated: {
-    does: "Transformdan chiqqan business-ready rowsni curated zone object sifatida saqlaydi.",
-    flow: "Memory ichidagi curated rows JSON objectga serialize qilinadi va MinIO ga yoziladi.",
-    result: "Curated object path qaytadi; warehouse load va replay uchun curated.json tayyor bo'ladi.",
+    does: "Prepared datani business-ready curated modelga aylantiradi va shu modelni saqlashga tayyorlaydi.",
+    flow: "Prepared rows transform qilinadi, entity/category/metric fieldlar yaratiladi va curated JSON model hosil bo'ladi.",
+    result: "ClickHouse va dashboardlar ishlatadigan yagona curated schema paydo bo'ladi.",
+    note: "PySpark transform va Curated Zone UI uchun bitta Transform / Curated Model stepiga birlashtirildi.",
   },
   clickhouse: {
-    does: "Curated rowsni analitik Data Warehouse jadvaliga insert qiladi.",
-    flow: "Backend ClickHouse client orqali curated_events jadvalini yaratadi yoki topadi, rowsni batch insert qiladi.",
-    result: "KPI, dashboard va BI querylar uchun curated_events jadvalida analytics data paydo bo'ladi.",
+    does: "Curated datani SQL/DWH modeling qoidalari bilan analytical warehousega yuklaydi.",
+    flow: "Curated model warehouse jadvaliga moslanadi, ClickHouse curated_events table yaratiladi yoki topiladi va batch insert bajariladi.",
+    result: "KPI, dashboard va tez analytics querylar uchun ClickHouse ichida tayyor DWH jadvali paydo bo'ladi.",
+    note: "dbt modeling va ClickHouse load rahbariyat ko'rinishi uchun bitta Warehouse Modeling / ClickHouse stepiga birlashtirildi.",
   },
   postgres: {
     does: "Pipeline run auditini ODS/metadata sifatida PostgreSQL jadvaliga yozadi.",
@@ -270,40 +231,30 @@ const stageDescriptions: Record<string, StageDescription> = {
     note: "Compose ichida Trino service hali ulanmagan; bu stage arxitektura qatlamini ko'rsatadi.",
   },
   api: {
-    does: "DWH natijalarini boshqa tizimlarga API orqali berish qatlamini bildiradi.",
-    flow: "External system FastAPI endpointlarga so'rov yuboradi, backend warehouse yoki service datani JSON response qiladi.",
-    result: "OpenAPI docs va API contract orqali integratsiya qilish mumkin bo'ladi.",
-  },
-  portal: {
-    does: "Hozirgi Next.js web interfeysni bildiradi: pipeline run, status, preview, logs va o'ng stage inspector sidebar.",
-    flow: "Browser Next.js appga ulanadi, Next API proxy backend bilan gaplashadi va response state sifatida render qilinadi.",
-    result: "Foydalanuvchi har bir stepda nima bo'lganini UI orqali ko'radi.",
-  },
-  export: {
-    does: "Natijalarni CSV, Excel, PDF yoki JSON sifatida tashqariga chiqarish qatlamini ifodalaydi.",
-    flow: "Tanlangan raw yoki curated result export servicega beriladi, service kerakli file formatni yaratadi.",
-    result: "Foydalanuvchi hisobot yoki ochiq data faylini yuklab olishi mumkin.",
-    note: "Hozir API JSON preview real ishlaydi; CSV/PDF export endpoint keyingi ish sifatida qolgan.",
+    does: "Tayyor warehouse natijasini foydalanuvchi va tashqi tizimlarga ko'rsatish yoki uzatish qatlamini bildiradi.",
+    flow: "Portal pipeline holatini ko'rsatadi, BI/Superset dashboard uchun qatlam rejalashtirilgan, API/query/export esa tayyor datani tashqariga berish yo'llaridir.",
+    result: "Rahbariyat portalda natijani ko'radi, keyingi integratsiyada BI dashboard, API, Trino query va export imkoniyatlari bitta delivery qatlamida ishlaydi.",
+    note: "Superset, Trino, API Services, Portal va Export ko'payib ketmasligi uchun Visualization / Delivery stepiga yig'ildi.",
   },
 };
 const stagePresentationTexts: Record<string, string> = {
-  fastapi: "Nima uchun kerak: barcha source'lar Data Warehousega bitta nazoratli kirish nuqtasi orqali kirishi kerak. FastAPI requestni qabul qiladi, source va limitni tekshiradi, lokal test API'dan null qiymatlari bor JSON payload oladi. Bu step data oqimini boshlaydi va keyingi bosqichlarga run_id bilan bir xil formatda uzatadi.",
+  fastapi: "Nima uchun kerak: barcha source data bitta nazoratli kirish nuqtasidan o\'tishi kerak. FastAPI requestni qabul qiladi, source va limitni tekshiradi, lokal test API\'dan null qiymatlari bor JSON payload oladi va pipeline uchun run_id bilan ishni boshlaydi.",
   nifi: "Nima uchun kerak: productionda source'lar ko'p bo'ladi va ularni qo'lda ulash qiyin. NiFi routing, filtering va flow boshqaruvi uchun kerak. Demo ichida bu alohida ishga tushmagan, lekin real tizimda qaysi source qayerga borishini NiFi boshqaradi.",
-  kafka: "Nima uchun kerak: pipeline ichidagi hodisalar yo'qolmasligi va boshqa servislar xabardor bo'lishi kerak. Kafka dataning o'zini emas, ingestion eventni uzatadi: run_id, source, mode va records soni. Bu monitoring, retry va real-time consumerlar uchun signal vazifasini bajaradi.",
+  kafka: "Nima uchun kerak: source kop bolsa routing va event signal alohida boshqarilishi kerak. NiFi data oqimini marshrutlash goyasini beradi, Kafka esa ingestion eventni uzatadi. Shu sababli UIda ular bitta NiFi / Kafka Ingestion stepida korsatiladi.",
   landing: "Nima uchun kerak: bu bosqich original payload va ishlov beriladigan raw rowlarni MinIO data lake ichida birga saqlaydi. Landing qismi audit uchun asl JSONni saqlaydi, Raw qismi esa keyingi Data Preparation ishlashi uchun row formatni tayyorlaydi. Shu sababli UIda bitta MinIO Landing / Raw step sifatida ko'rsatiladi.",
   raw: "Nima uchun kerak: original payload ko'pincha ichma-ich JSON bo'ladi, pipeline esa rowlar bilan ishlaydi. Raw Zone collectionni ajratadi va xom rowlar sifatida saqlaydi. Bu hali biznes model emas, lekin keyingi profiling va tozalash uchun qulay format.",
-  preparation: "Nima uchun kerak: xom rowni bevosita DWHga yuborish xavfli. Data Preparation columnlarni profil qiladi, type va bo'sh qiymatlarni ko'radi, stringlarni tozalaydi va prepared draft yaratadi. Raw data buzilmaydi, yangi prepared version keyingi stepga beriladi.",
+  preparation: "Nima uchun kerak: xom data DWHga togridan-togri ketmasligi kerak. Bu step profiling, cleanup, null imputation, manual edit va version tanlashni bitta nazorat nuqtasiga yigadi. Quality gatega faqat tanlangan prepared version otadi.",
   imputation: "Nima uchun kerak: DWHga null yoki sifatsiz qiymatlar nazoratsiz ketmasligi kerak. Bu step missing fieldlarni topadi, hisoblangan/default qiymat bilan to'ldiradi va kerak bo'lsa operator qo'lda tuzatadi. Shu joyda flow to'xtab, prepared version tanlangandan keyin qualityga o'tadi.",
   gx: "Nima uchun kerak: tozalangan data ham DWHga kirishdan oldin quality gate'dan o'tishi kerak. Great Expectations record count, id, schema va null threshold kabi qoidalarni tekshiradi. Xato bo'lsa DWHga noto'g'ri data ketmasdan shu yerda to'xtaydi.",
   airflow: "Nima uchun kerak: productionda pipeline tugmani bosib emas, jadval yoki event asosida avtomatik yurishi kerak. Airflow DAG, retry, schedule va task statusni boshqaradi. Demo manual run bilan ko'rsatilgan, Airflow esa orchestration qatlami sifatida tayyor turadi.",
-  spark: "Nima uchun kerak: prepared data hali analytics uchun yakuniy model emas. PySpark/transform bosqichi rowlarni business schema'ga o'tkazadi: entity_name, category, metric_name, metric_value va status. Bu ClickHouse uchun yagona analitik format yaratadi.",
+  spark: "Nima uchun kerak: prepared data hali analytics modeli emas. Transform / Curated Model stepi uni business schemaga otkazadi va qayta ishlatish uchun curated model sifatida saqlaydi. Shundan keyin DWH bir xil formatdagi datani qabul qiladi.",
   curated: "Nima uchun kerak: transform natijasini faqat xotirada qoldirib bo'lmaydi. Curated Zone business-ready datani qayta ishlatish, replay qilish va warehousega qayta yuklash uchun saqlaydi. Bu Rawdan farqli ravishda dashboard va DWHga yaqin model.",
   dbt: "Nima uchun kerak: warehouse ichida SQL model, fact/dimension va KPI qoidalari tartibli saqlanishi kerak. dbt shu modeling qatlamini standartlashtiradi. Demo transformni backend bajargan, dbt esa productionda SQL model va testlarni boshqaradi.",
-  clickhouse: "Nima uchun kerak: tayyor curated data tez analitik so'rovlar uchun maxsus DWH bazasiga tushishi kerak. ClickHouse katta hajmdagi KPI, dashboard va aggregatsiya querylarini tez bajaradi. Bu step datani real analytics jadvaliga yuklaydi.",
+  clickhouse: "Nima uchun kerak: tayyor curated data SQL model va tez analytical query uchun DWHga tushishi kerak. Bu step dbt modeling goyasi va ClickHouse loadni birlashtiradi: data KPI, dashboard va aggregatsiya sorovlari uchun tayyorlanadi.",
   postgres: "Nima uchun kerak: pipeline natijasining auditi alohida saqlanishi kerak. PostgreSQL run_id, status, records, quality_score va warninglarni yozadi. Bu DWH datasi emas, balki jarayonni kuzatish va troubleshooting uchun operational metadata.",
   superset: "Nima uchun kerak: rahbariyat va analitiklar DWHdagi datani dashboard orqali ko'rishi kerak. Superset shu BI qatlam uchun rejalashtirilgan. Demo'da dashboardni Next.js portal ko'rsatyapti, shuning uchun Superset NOT CONNECTED deb halol ajratilgan.",
   trino: "Nima uchun kerak: ayrim holatda bitta bazadan emas, bir nechta storage va database'dan ad-hoc SQL qilish kerak bo'ladi. Trino shu distributed query qatlamini beradi. Hozir demo ClickHouse/PostgreSQL bilan ishlayapti, Trino hali ulanmagan.",
-  api: "Nima uchun kerak: DWH natijasidan faqat portal emas, boshqa tizimlar ham foydalanishi kerak. API Services tayyor KPI yoki curated datani tashqi tizimlarga JSON contract bilan beradi. Demo'da FastAPI bor, lekin bu serving qatlami alohida kengaytiriladi.",
+  api: "Nima uchun kerak: DWH natijasi faqat bazada qolmasligi kerak. Visualization / Delivery stepi portal, BI dashboard, API, query va export yollarini bitta foydalanuvchi chiqish qatlamiga yigadi. Demo hozir portal orqali korsatadi, qolganlari integration sifatida korsatiladi.",
   portal: "Nima uchun kerak: foydalanuvchi pipeline holatini bitta oynada ko'rishi kerak. Portal run qilish, step statusi, timeline, lineage, preview va xatoliklarni ko'rsatadi. Bu demo'da rahbariyat ko'rayotgan asosiy web interfeys shu.",
   export: "Nima uchun kerak: ayrim foydalanuvchilar data yoki hisobotni fayl ko'rinishida olishni xohlaydi. Export CSV, Excel, PDF yoki JSON chiqarish uchun kerak. Demo scope'da bu hali ulanmagan, shuning uchun NOT CONNECTED holatda ko'rsatilgan.",
 };
@@ -326,28 +277,13 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   preparation: {
     input_ref: "MinIO raw-zone/{source}/{run_id}/raw.json",
     output_ref: "MinIO raw-zone/{source}/{run_id}/prepared.json",
-    input_preview: { operation: "profile + normalize + prepared draft" },
-    artifacts: { module: "backend/app/preparation.py", persisted_object: "prepared.json", raw_immutable: true },
-  },
-  imputation: {
-    input_ref: "prepared draft rows",
-    output_ref: "prepared.json with record version IDs",
-    input_preview: { operation: "null scan + imputation + manual edit" },
-    output_preview: { version_flow: "raw:v0 -> prep:v1 -> qa:v2 -> dwh:v3", status: "READY_FOR_QUALITY" },
-    artifacts: { module: "backend/app/preparation.py", metric: "imputed_values", record_versions: true },
+    input_preview: { operation: "profile + normalize + imputation + version gate" },
+    artifacts: { module: "backend/app/preparation.py", persisted_object: "prepared.json", raw_immutable: true, includes: ["Data Preparation", "Imputatsiya / Edit"] },
   },
   gx: { artifacts: { validator: "backend/app/quality.py", checks: ["record_count", "primary_key", "schema_not_empty", "null_threshold"] } },
   spark: { artifacts: { pyspark_job: "spark/jobs/dummyjson_curate.py", runtime_transform: "backend/app/transform.py" } },
   curated: { artifacts: { storage: "MinIO raw-zone/curated", format: "json/parquet-compatible schema" } },
-  clickhouse: { artifacts: { database: "dwh", table: "curated_events", code: "backend/app/databases.py" } },
-  postgres: { artifacts: { database: "dwh", table: "pipeline_runs", code: "backend/app/databases.py" } },
-  airflow: {
-    input_ref: "http://localhost:8088",
-    output_ref: "airflow/dags/dwh_dummyjson_pipeline.py",
-    input_preview: { dag_id: "dwh_dummyjson_pipeline", trigger: "scheduled/manual Airflow" },
-    output_preview: { note: "Bu UI tugmasi FastAPI run qiladi; Airflow DAG kodi tayyor, lekin shu manual run ichida trigger qilinmagan." },
-    artifacts: { dag: "airflow/dags/dwh_dummyjson_pipeline.py", service_url: "http://localhost:8088" },
-  },
+  clickhouse: { artifacts: { database: "dwh", table: "curated_events", code: "backend/app/databases.py", includes: ["dbt modeling", "ClickHouse load"] } },
   dbt: {
     input_ref: "dbt/dwh_project/models/staging",
     output_ref: "dbt/dwh_project/models/marts",
@@ -368,47 +304,25 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
     artifacts: { role: "ad-hoc SQL gateway" },
   },
   api: {
-    input_ref: "backend/app/main.py",
-    output_ref: "http://localhost:8000/docs",
-    input_preview: { routes: ["GET /health", "GET /sources", "POST /pipeline/run"] },
-    output_preview: { note: "External systems shu API orqali data oladi." },
-    artifacts: { openapi: "http://localhost:8000/docs" },
-  },
-  portal: {
-    input_ref: "Next.js API proxy",
-    output_ref: "current Next.js origin",
-    input_preview: { proxy_routes: ["/api/backend/health", "/api/backend/sources", "/api/backend/pipeline/run"] },
-    output_preview: { note: "Hozirgi ekran shu portalning real Next.js frontend qismi." },
-    artifacts: { component: "frontend/components/Dashboard.tsx" },
-  },
-  export: {
-    input_ref: "result.raw_preview / result.curated_preview",
-    output_ref: "JSON preview table",
-    output_preview: { note: "CSV/PDF export endpoint hali alohida yozilmagan; API response JSON ko'rinishida real qaytyapti." },
-    artifacts: { current_format: "JSON", next_endpoint: "POST /exports" },
+    input_ref: "ClickHouse curated_events / Portal state",
+    output_ref: "Visualization and delivery layer",
+    input_preview: { includes: ["Portal", "Superset", "Trino", "API Services", "Export"] },
+    output_preview: { note: "Portal real ishlaydi; Superset/Trino/Export keyingi integration sifatida ko'rsatilgan." },
+    artifacts: { frontend: "Next.js", route: "frontend/app/api/backend", delivery: ["BI", "API", "Query", "Export"] },
   },
 };
 
 const PLAYBACK_STEP_MS = 3000;
 const PLAYBACK_ORDER = [
   "fastapi",
-  "nifi",
   "kafka",
   "landing",
   "preparation",
-  "imputation",
   "gx",
-  "airflow",
   "spark",
-  "curated",
-  "dbt",
   "clickhouse",
   "postgres",
-  "superset",
-  "trino",
   "api",
-  "portal",
-  "export",
 ];
 
 export function Dashboard() {
@@ -478,6 +392,40 @@ export function Dashboard() {
           raw_output_ref: raw.output_ref,
         },
         warnings: [...(landing.warnings ?? []), ...(raw.warnings ?? [])],
+      });
+    }
+    const spark = map.get("spark");
+    const curated = map.get("curated");
+    if (spark && curated) {
+      const combinedStatus = spark.status === "error" || curated.status === "error"
+        ? "error"
+        : spark.status === "warning" || curated.status === "warning"
+          ? "warning"
+          : "done";
+      map.set("spark", {
+        ...spark,
+        name: "Transform / Curated Model",
+        status: combinedStatus,
+        message: `${spark.message}; ${curated.message}`,
+        ended_at: curated.ended_at,
+        duration_ms: spark.duration_ms + curated.duration_ms,
+        data_size_bytes: spark.data_size_bytes + curated.data_size_bytes,
+        output_ref: curated.output_ref ?? spark.output_ref,
+        output_preview: {
+          transform: spark.output_preview,
+          curated: curated.output_preview,
+        },
+        metrics: {
+          ...(spark.metrics ?? {}),
+          curated_records_written: curated.metrics?.records_written,
+          curated_object_count: curated.metrics?.object_count,
+        },
+        artifacts: {
+          ...(spark.artifacts ?? {}),
+          curated_artifacts: curated.artifacts,
+          curated_output_ref: curated.output_ref,
+        },
+        warnings: [...(spark.warnings ?? []), ...(curated.warnings ?? [])],
       });
     }
     const preparation = map.get("preparation");
@@ -623,10 +571,10 @@ export function Dashboard() {
       setActiveStage(stage);
       addLog(`animation: ${index + 1}/${playbackStagesRef.current.length} ${stage.id}`);
 
-      if (stage.id === "imputation") {
+      if (stage.id === "preparation") {
         setPlaybackRunning(false);
         setAwaitingVersionSelection(true);
-        addLog("WAITING_VERSION_SELECTION: Imputatsiya/Edit stepda to'xtadi. Version tanlang va davom ettiring.");
+        addLog("WAITING_VERSION_SELECTION: Data Preparation / Imputation stepda to'xtadi. Version tanlang va davom ettiring.");
         return;
       }
 
@@ -1859,7 +1807,7 @@ function PreparationLifecycle({
             <article className="recordVersionEmpty">Pipeline ishga tushgandan keyin har bir record uchun version_id lar shu yerda chiqadi.</article>
           )}
         </div>
-        {stage.id === "imputation" && (
+        {stage.id === "preparation" && (
           <div className={["versionGateControl", awaitingVersionSelection ? "paused" : ""].join(" ")}>
             <div>
               <strong>{awaitingVersionSelection ? "Process shu joyda to'xtadi" : "Version gate"}</strong>
