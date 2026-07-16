@@ -739,7 +739,16 @@ export function Dashboard() {
             visitedStageIds={visitedStageIds}
             playbackStageId={playbackStageId}
             onSelect={handleStageSelect}
-          />        </article>
+          />
+          <PrepareImputationDeepBlock
+            result={result}
+            stageResults={stageResults}
+            selectedVersionId={selectedVersionId}
+            awaitingVersionSelection={awaitingVersionSelection}
+            onSelectVersion={setSelectedVersionId}
+            onContinue={continueAfterVersionSelection}
+          />
+        </article>
 
         <aside className="runSidebar">
           <StageSidePanel
@@ -885,6 +894,117 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function PrepareImputationDeepBlock({
+  result,
+  stageResults,
+  selectedVersionId,
+  awaitingVersionSelection,
+  onSelectVersion,
+  onContinue,
+}: {
+  result: PipelineResult | null;
+  stageResults: Map<string, StageResult>;
+  selectedVersionId: string | null;
+  awaitingVersionSelection: boolean;
+  onSelectVersion: (versionId: string) => void;
+  onContinue: () => void;
+}) {
+  const preparation = stageResults.get("preparation");
+  const imputation = stageResults.get("imputation") ?? preparation;
+  const metrics = imputation?.metrics ?? {};
+  const preparedRows = result?.prepared_preview ?? [];
+  const versionRows = preparedRows.slice(0, 8).map((row, index) => {
+    const recordId = String(row.id ?? row.dw_id ?? `row-${index + 1}`);
+    const base = recordId.replace(/[^a-zA-Z0-9_-]/g, "").slice(-8) || String(index + 1).padStart(2, "0");
+    return {
+      recordId,
+      raw: `raw:${base}:v0`,
+      prepared: `prep:${base}:v1`,
+      quality: `qa:${base}:v2`,
+      dwh: `dwh:${base}:v3`,
+    };
+  });
+
+  const flow = [
+    ["01", "Raw draft", "Raw Zone dan kelgan asl record o'zgartirilmaydi. Har bir record uchun raw:v0 version saqlanadi."],
+    ["02", "Prepare stage", "Profiling, type aniqlash, trim/null normalize va prepared draft ochiladi."],
+    ["03", "Imputatsiya / Edit", "Bo'sh qiymatlar default yoki hisoblangan qiymat bilan to'ldiriladi. Operator kerak bo'lsa tabledan recordni tanlab qo'lda edit qiladi."],
+    ["04", "Version tanlash", "Tabledagi prepared version ID tanlanadi. Tanlanmaguncha flow shu joyda to'xtab turadi."],
+    ["05", "Quality va DWH", "Tanlangan version Great Expectations validationga, keyin Curated Zone va ClickHouse DWH ga ketadi."],
+  ];
+
+  return (
+    <section className="prepareDeepBlock">
+      <div className="prepareDeepHead">
+        <div>
+          <p>Prepare stage</p>
+          <h3>Imputatsiya / Edit va version tanlash jarayoni</h3>
+        </div>
+        <span className={["prepareGateBadge", awaitingVersionSelection ? "paused" : imputation ? "ready" : "waiting"].join(" ")}>
+          {awaitingVersionSelection ? "STOPPED FOR VERSION" : imputation ? "READY FOR QUALITY" : "WAITING INPUT"}
+        </span>
+      </div>
+
+      <div className="prepareDeepGrid">
+        <article className="prepareFlowPanel">
+          <strong>Process qanday ishlaydi</strong>
+          <div className="prepareFlowSteps">
+            {flow.map(([index, title, text]) => (
+              <div key={index} className="prepareFlowStep">
+                <span>{index}</span>
+                <div>
+                  <b>{title}</b>
+                  <p>{text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="prepareMetricsPanel">
+          <strong>Realtime natija</strong>
+          <div className="prepareMetricGrid">
+            <ReportValue label="Rows" value={String(metrics.output_rows ?? preparedRows.length)} />
+            <ReportValue label="Imputed" value={String(metrics.imputed_values ?? 0)} />
+            <ReportValue label="Manual edit" value={String(metrics.manual_corrections_applied ?? 0)} />
+            <ReportValue label="Rejected" value={String(metrics.manual_corrections_rejected ?? 0)} />
+          </div>
+          <code>{imputation?.output_ref ?? "prepared.json va version ID lar pipeline ishga tushganda chiqadi"}</code>
+        </article>
+      </div>
+
+      <div className="prepareVersionSelect">
+        <div className="prepareVersionTitle">
+          <strong>Tabledan version tanlash</strong>
+          <span>{selectedVersionId ? `Tanlangan: ${selectedVersionId}` : "Prepared version ID tanlanmagan"}</span>
+        </div>
+        <div className="prepareVersionRows">
+          {versionRows.length ? versionRows.map((item) => {
+            const selected = selectedVersionId === item.prepared;
+            return (
+              <button key={item.recordId} type="button" className={["prepareVersionRow", selected ? "selected" : ""].join(" ")} onClick={() => onSelectVersion(item.prepared)}>
+                <span><b>record_id</b><code>{item.recordId}</code></span>
+                <span><b>Raw</b><code>{item.raw}</code></span>
+                <span><b>Prepared</b><code>{item.prepared}</code></span>
+                <span><b>Quality</b><code>{item.quality}</code></span>
+                <span><b>DWH</b><code>{item.dwh}</code></span>
+                <em>{selected ? "SELECTED" : "SELECT"}</em>
+              </button>
+            );
+          }) : (
+            <div className="prepareVersionEmpty">Run scenario qiling. Prepared preview chiqqandan keyin har bir recordning version ID lari shu tableda tanlanadi.</div>
+          )}
+        </div>
+        <div className="prepareContinueBar">
+          <span>{awaitingVersionSelection ? "Flow shu yerda to'xtagan. Version tanlang va davom ettiring." : "Imputatsiya stepga kelganda bu gate avtomatik pause qiladi."}</span>
+          <button type="button" onClick={onContinue} disabled={!awaitingVersionSelection || !selectedVersionId}>
+            <Icon name="play" /> Tanlangan version bilan davom etish
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
 function PreparationWorkbench({
   rawRows,
   preparedRows,
