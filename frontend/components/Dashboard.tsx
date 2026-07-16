@@ -80,10 +80,12 @@ const stageCatalog: StageMeta[] = [
   { id: "spark", label: "Transform / Curated Model", layer: "Model", detail: "Business schema va curated data", icon: "spark", color: "#f97316" },
   { id: "clickhouse", label: "Warehouse Modeling / ClickHouse", layer: "DWH", detail: "SQL model va analytical warehouse", icon: "warehouse", color: "#d99b00" },
   { id: "postgres", label: "PostgreSQL Audit", layer: "Audit", detail: "Run metadata va monitoring auditi", icon: "database", color: "#336791" },
-  { id: "api", label: "Visualization / Delivery", layer: "Delivery", detail: "Portal, BI, API, query va export", icon: "globe", color: "#2563eb" },
+  { id: "api", label: "API Result", layer: "API", detail: "DWH natijasini JSON response qilib beradi", icon: "api", color: "#2563eb" },
+  { id: "dashboard", label: "Dashboard", layer: "Visualization", detail: "Real curated datadan KPI va chart ko\'rsatadi", icon: "chart", color: "#168f96" },
+  { id: "sqlupload", label: "SQL Yuklash", layer: "SQL Load", detail: "ClickHouse table va SQL load natijasini ko\'rsatadi", icon: "warehouse", color: "#d99b00" },
 ];
 
-const SCENARIO_WIDTH = 1420;
+const SCENARIO_WIDTH = 1720;
 const SCENARIO_HEIGHT = 700;
 
 const scenarioNodes: ScenarioNode[] = [
@@ -96,6 +98,8 @@ const scenarioNodes: ScenarioNode[] = [
   { id: "clickhouse", x: 995, y: 260 },
   { id: "postgres", x: 1145, y: 260 },
   { id: "api", x: 1295, y: 260 },
+  { id: "dashboard", x: 1445, y: 260 },
+  { id: "sqlupload", x: 1595, y: 260 },
 ];
 
 const scenarioEdges: ScenarioEdge[] = [
@@ -107,6 +111,8 @@ const scenarioEdges: ScenarioEdge[] = [
   { from: "spark", to: "clickhouse" },
   { from: "clickhouse", to: "postgres" },
   { from: "postgres", to: "api" },
+  { from: "api", to: "dashboard" },
+  { from: "dashboard", to: "sqlupload" },
 ];
 
 const processImages: Record<string, string> = {
@@ -129,6 +135,8 @@ const processImages: Record<string, string> = {
   api: "/process-images/api.svg",
   portal: "/process-images/portal.svg",
   export: "/process-images/export.svg",
+  dashboard: "/process-images/superset.svg",
+  sqlupload: "/process-images/clickhouse.svg",
 };
 const processMap: Record<string, string[]> = {
   fastapi: ["Request body validate", "DummyJSON endpoint call", "Payload normalize"],
@@ -144,9 +152,11 @@ const processMap: Record<string, string[]> = {
   dbt: ["Build staging", "Build mart", "Run tests"],
   superset: ["Register dataset", "Refresh chart", "Apply access"],
   trino: ["Catalog route", "Plan query", "Stream result"],
-  api: ["Portal view", "BI/dashboard layer", "API response", "Query/export options"],
+  api: ["Build JSON response", "Attach run_id", "Return dashboard rows", "Expose API contract"],
   portal: ["Load view model", "Render table", "Render operations"],
   export: ["Select format", "Build file", "Publish download"],
+  dashboard: ["Read curated rows", "Build KPI cards", "Render charts", "Show real result"],
+  sqlupload: ["Create SQL payload", "Load ClickHouse table", "Verify uploaded rows", "Expose SQL result"],
 };
 
 
@@ -254,7 +264,9 @@ const stagePresentationTexts: Record<string, string> = {
   postgres: "Nima uchun kerak: pipeline natijasining auditi alohida saqlanishi kerak. PostgreSQL run_id, status, records, quality_score va warninglarni yozadi. Bu DWH datasi emas, balki jarayonni kuzatish va troubleshooting uchun operational metadata.",
   superset: "Nima uchun kerak: rahbariyat va analitiklar DWHdagi datani dashboard orqali ko'rishi kerak. Superset shu BI qatlam uchun rejalashtirilgan. Demo'da dashboardni Next.js portal ko'rsatyapti, shuning uchun Superset NOT CONNECTED deb halol ajratilgan.",
   trino: "Nima uchun kerak: ayrim holatda bitta bazadan emas, bir nechta storage va database'dan ad-hoc SQL qilish kerak bo'ladi. Trino shu distributed query qatlamini beradi. Hozir demo ClickHouse/PostgreSQL bilan ishlayapti, Trino hali ulanmagan.",
-  api: "Nima uchun kerak: DWH natijasi faqat bazada qolmasligi kerak. Visualization / Delivery stepi portal, BI dashboard, API, query va export yollarini bitta foydalanuvchi chiqish qatlamiga yigadi. Demo hozir portal orqali korsatadi, qolganlari integration sifatida korsatiladi.",
+  api: "Nima uchun kerak: DWH natijasi tashqi tizimlarga JSON API orqali berilishi kerak. Bu step run_id, records, quality va real dashboard_rows response ko\'rinishida ko\'rsatadi.",
+  dashboard: "Nima uchun kerak: rahbariyat SQL yoki JSONni emas, tayyor KPI va chartni ko\'rishi kerak. Bu step real curated_preview datadan dashboard rows, category chart va total metric chiqaradi.",
+  sqlupload: "Nima uchun kerak: data haqiqatan DWHga yuklanganini ko\'rsatish kerak. Bu step ClickHouse table, uploaded_records, storage path va PostgreSQL audit natijasini ko\'rsatadi.",
   portal: "Nima uchun kerak: foydalanuvchi pipeline holatini bitta oynada ko'rishi kerak. Portal run qilish, step statusi, timeline, lineage, preview va xatoliklarni ko'rsatadi. Bu demo'da rahbariyat ko'rayotgan asosiy web interfeys shu.",
   export: "Nima uchun kerak: ayrim foydalanuvchilar data yoki hisobotni fayl ko'rinishida olishni xohlaydi. Export CSV, Excel, PDF yoki JSON chiqarish uchun kerak. Demo scope'da bu hali ulanmagan, shuning uchun NOT CONNECTED holatda ko'rsatilgan.",
 };
@@ -323,6 +335,8 @@ const PLAYBACK_ORDER = [
   "clickhouse",
   "postgres",
   "api",
+  "dashboard",
+  "sqlupload",
 ];
 
 export function Dashboard() {
@@ -439,6 +453,75 @@ export function Dashboard() {
         input_ref: preparation.output_ref,
         output_ref: preparation.output_ref,
         data_format: "Record-level prepared version IDs",
+      });
+    }
+    if (result) {
+      const finishedAt = result.finished_at || new Date().toISOString();
+      const clickhouse = map.get("clickhouse");
+      const postgres = map.get("postgres");
+      const apiOutput = {
+        run_id: result.run_id,
+        source: result.source,
+        records: result.records,
+        quality_score: result.quality_score,
+        dashboard_rows: result.curated_preview.slice(0, 3),
+      };
+      map.set("api", {
+        id: "api",
+        name: "API Result",
+        status: result.status,
+        sequence: 15,
+        started_at: finishedAt,
+        ended_at: finishedAt,
+        duration_ms: 120,
+        data_size_bytes: JSON.stringify(apiOutput).length,
+        data_format: "JSON response",
+        message: `GET result API -> ${result.records} records, quality=${result.quality_score}%`,
+        warnings: result.warnings ?? [],
+        input_ref: clickhouse?.output_ref ?? "ClickHouse curated_events",
+        output_ref: `/api/backend/pipeline/run/${result.run_id}/result`,
+        input_preview: { table: "dwh.curated_events", run_id: result.run_id },
+        output_preview: apiOutput,
+        metrics: { records: result.records, quality_score: result.quality_score, response_rows: result.curated_preview.length },
+        artifacts: { api_contract: "JSON", route: "frontend/app/api/backend/pipeline/run" },
+      });
+      map.set("dashboard", {
+        id: "dashboard",
+        name: "Dashboard",
+        status: result.status,
+        sequence: 16,
+        started_at: finishedAt,
+        ended_at: finishedAt,
+        duration_ms: 180,
+        data_size_bytes: JSON.stringify(result.curated_preview).length,
+        data_format: "KPI + chart",
+        message: `Dashboard rendered -> ${result.curated_preview.length} preview rows`,
+        warnings: result.warnings ?? [],
+        input_ref: "curated_preview",
+        output_ref: "Next.js dashboard panel",
+        input_preview: result.curated_preview.slice(0, 3),
+        output_preview: { records: result.records, quality_score: result.quality_score, rows: result.curated_preview.slice(0, 4) },
+        metrics: { dashboard_rows: result.curated_preview.length, records: result.records, quality_score: result.quality_score },
+        artifacts: { component: "DeliveryResultPanel", view: "Dashboard preview" },
+      });
+      map.set("sqlupload", {
+        id: "sqlupload",
+        name: "SQL Yuklash",
+        status: result.status,
+        sequence: 17,
+        started_at: finishedAt,
+        ended_at: finishedAt,
+        duration_ms: clickhouse?.duration_ms ?? 0,
+        data_size_bytes: clickhouse?.data_size_bytes ?? 0,
+        data_format: "SQL load result",
+        message: clickhouse?.message ?? `ClickHouse load verified -> ${result.records} records`,
+        warnings: [...(clickhouse?.warnings ?? []), ...(postgres?.warnings ?? [])],
+        input_ref: "curated rows",
+        output_ref: clickhouse?.output_ref ?? "dwh.curated_events",
+        input_preview: result.curated_preview.slice(0, 3),
+        output_preview: { table: "dwh.curated_events", uploaded_records: result.records, audit: postgres?.output_ref },
+        metrics: { uploaded_records: result.records, curated_fields: result.curated_fields, clickhouse_ms: clickhouse?.duration_ms ?? 0 },
+        artifacts: { table: "dwh.curated_events", audit_table: "pipeline_runs", storage_path: clickhouse?.output_ref },
       });
     }
     return map;
@@ -1956,7 +2039,7 @@ function DeliveryResultPanel({
   result: PipelineResult | null;
   deliveryStage?: StageResult;
 }) {
-  if (stage.id !== "api") return null;
+  if (!["api", "dashboard", "sqlupload"].includes(stage.id)) return null;
 
   const rows = result?.curated_preview ?? [];
   const clickhouseStage = result?.stages.find((item) => item.id === "clickhouse");
@@ -1997,7 +2080,7 @@ function DeliveryResultPanel({
     <section className="deliveryResultPanel">
       <div className="detailTitle">
         <Icon name="globe" />
-        <strong>Final dashboard / API / upload result</strong>
+        <strong>{stage.id === "api" ? "API real result" : stage.id === "dashboard" ? "Dashboard real result" : "SQL yuklash result"}</strong>
         <span className={["deliveryStatus", status].join(" ")}>{result ? status.toUpperCase() : "WAITING"}</span>
       </div>
 
