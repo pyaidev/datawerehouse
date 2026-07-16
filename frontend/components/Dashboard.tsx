@@ -77,7 +77,8 @@ const stageCatalog: StageMeta[] = [
   { id: "kafka", label: "Apache Kafka", layer: "Stream", detail: "Ingestion event topicga yoziladi", icon: "stream", color: "#252b36" },
   { id: "landing", label: "MinIO Landing", layer: "Object", detail: "Original payload landing bucketga yoziladi", icon: "bucket", color: "#2e8b57" },
   { id: "raw", label: "MinIO Raw", layer: "Lake", detail: "Normalized raw rows saqlanadi", icon: "database", color: "#0f766e" },
-  { id: "preparation", label: "Data Preparation", layer: "Prepare", detail: "Profiling, normalize va qo'lda tuzatishlar", icon: "workflow", color: "#0e7490" },
+  { id: "preparation", label: "Data Preparation", layer: "Prepare", detail: "Profiling va version draft yaratish", icon: "workflow", color: "#0e7490" },
+  { id: "imputation", label: "Imputatsiya / Edit", layer: "Prepare", detail: "Bo'sh qiymatlarni to'ldirish va operator edit", icon: "code", color: "#b45309" },
   { id: "gx", label: "Great Expectations", layer: "Quality", detail: "Record, schema va null check", icon: "shield", color: "#16a34a" },
   { id: "spark", label: "PySpark", layer: "Compute", detail: "Curated transform job", icon: "spark", color: "#f97316" },
   { id: "curated", label: "Curated Zone", layer: "Model", detail: "Business schema saqlanadi", icon: "layers", color: "#7c3aed" },
@@ -92,7 +93,7 @@ const stageCatalog: StageMeta[] = [
   { id: "export", label: "Export", layer: "File", detail: "JSON/CSV/PDF export", icon: "download", color: "#6366f1" },
 ];
 
-const SCENARIO_WIDTH = 1280;
+const SCENARIO_WIDTH = 1420;
 const SCENARIO_HEIGHT = 700;
 
 const scenarioNodes: ScenarioNode[] = [
@@ -102,18 +103,19 @@ const scenarioNodes: ScenarioNode[] = [
   { id: "landing", x: 490, y: 240 },
   { id: "raw", x: 625, y: 240 },
   { id: "preparation", x: 760, y: 240 },
-  { id: "gx", x: 895, y: 240 },
-  { id: "spark", x: 1030, y: 240 },
-  { id: "curated", x: 1165, y: 240 },
-  { id: "dbt", x: 1165, y: 450 },
-  { id: "clickhouse", x: 1015, y: 450 },
-  { id: "superset", x: 835, y: 375 },
-  { id: "trino", x: 835, y: 535 },
+  { id: "imputation", x: 895, y: 240 },
+  { id: "gx", x: 1030, y: 240 },
+  { id: "spark", x: 1165, y: 240 },
+  { id: "curated", x: 1300, y: 240 },
+  { id: "dbt", x: 1300, y: 450 },
+  { id: "clickhouse", x: 1150, y: 450 },
+  { id: "superset", x: 970, y: 375 },
+  { id: "trino", x: 970, y: 535 },
   { id: "api", x: 640, y: 455 },
   { id: "portal", x: 440, y: 370 },
   { id: "export", x: 440, y: 540 },
-  { id: "postgres", x: 1165, y: 610 },
-  { id: "airflow", x: 900, y: 70 },
+  { id: "postgres", x: 1300, y: 610 },
+  { id: "airflow", x: 1030, y: 70 },
 ];
 
 const scenarioEdges: ScenarioEdge[] = [
@@ -122,7 +124,8 @@ const scenarioEdges: ScenarioEdge[] = [
   { from: "kafka", to: "landing" },
   { from: "landing", to: "raw" },
   { from: "raw", to: "preparation" },
-  { from: "preparation", to: "gx" },
+  { from: "preparation", to: "imputation" },
+  { from: "imputation", to: "gx" },
   { from: "gx", to: "spark" },
   { from: "spark", to: "curated" },
   { from: "curated", to: "dbt" },
@@ -143,6 +146,7 @@ const processImages: Record<string, string> = {
   landing: "/process-images/landing.svg",
   raw: "/process-images/raw.svg",
   preparation: "/process-images/preparation.svg",
+  imputation: "/process-images/imputation.svg",
   gx: "/process-images/gx.svg",
   spark: "/process-images/spark.svg",
   curated: "/process-images/curated.svg",
@@ -162,7 +166,8 @@ const processMap: Record<string, string[]> = {
   kafka: ["Build event", "Serialize JSON", "Publish to dwh.ingestion.events"],
   landing: ["Build object key", "Write landing JSON", "Return S3 reference"],
   raw: ["Normalize collection", "Write raw rows", "Catalog raw object"],
-  preparation: ["RAW_RECEIVED: raw object o'qildi", "PROFILED: column/type profile olindi", "NORMALIZED: trim va null normalize", "IMPUTATION_EDIT: bo'sh qiymatlarni to'ldirish", "MANUAL_CORRECTION: qo'lda tuzatishlar", "VERSION_SAVED: prepared v1 saqlandi", "READY_FOR_DWH: qualitydan keyin warehousega ketadi"],
+  preparation: ["RAW_RECEIVED: raw object o'qildi", "PROFILED: column/type profile olindi", "NORMALIZED: trim va null normalize", "VERSION_DRAFT: prepared draft ochildi"],
+  imputation: ["NULL_SCAN: bo'sh fieldlarni topish", "IMPUTATION_EDIT: qiymat to'ldirish", "MANUAL_EDIT: operator tuzatishi", "RECORD_VERSION_ID: har record versioni", "READY_FOR_QUALITY: validationga yuborish"],
   gx: ["Record count", "Primary key", "Schema and null threshold"],
   spark: ["Read raw", "Transform dataframe", "Write curated model"],
   curated: ["Business mapping", "Conformed columns", "Write curated JSON"],
@@ -206,10 +211,16 @@ const stageDescriptions: Record<string, StageDescription> = {
     result: "Keyingi validation va transform uchun normalized raw rows tayyor bo'ladi.",
   },
   preparation: {
-    does: "Raw datani DWH ga yuborishdan oldin profil qiladi, string va bo'sh qiymatlarni normalize qiladi, bo'sh qiymatlarni imputatsiya qiladi hamda operator kiritgan qo'lda tuzatishlarni qo'llaydi.",
-    flow: "Raw rowlar o'zgarmas nusxa sifatida qoladi. Avval blank/null qiymatlar column default yoki hisoblangan qiymat bilan imputatsiya qilinadi, keyin correction rule record_id va column bo'yicha tekshiriladi va prepared.json versiyasi yoziladi.",
-    result: "Prepared preview, column profile, imputation auditi, applied/rejected correction auditi va MinIO path hosil bo'ladi. Quality va transform faqat shu versiyadan davom etadi.",
-    note: "Qo'lda tuzatish raw objectni o'zgartirmaydi; yangi pipeline run ichida versionlangan prepared object yaratiladi.",
+    does: "Raw datani DWH ga yuborishdan oldin profil qiladi, string va bo'sh qiymatlarni normalize qiladi hamda prepared draft version yaratadi.",
+    flow: "Raw rowlar o'zgarmas nusxa sifatida qoladi. Column profile, type inference va basic cleanup bajariladi.",
+    result: "Prepared draft ochiladi va keyingi Imputatsiya / Edit stepga beriladi.",
+    note: "Raw object o'zgarmaydi; keyingi step har bir record uchun version ID bilan ishlaydi.",
+  },
+  imputation: {
+    does: "Bo'sh yoki sifatsiz qiymatlarni topadi, hisoblangan/default qiymat bilan to'ldiradi va operator edit qilgan fieldlarni record versioniga yozadi.",
+    flow: "Prepared draft ichidagi har bir record uchun raw:v0, prep:v1, qa:v2, dwh:v3 version ID ko'rsatiladi. Imputatsiya va manual edit faqat prepared versionda bajariladi.",
+    result: "Imputed count, manual edit audit, record version ID lari va READY_FOR_QUALITY statusi chiqadi. Shundan keyin data Great Expectations validatsiyasiga ketadi.",
+    note: "Bu step Data Preparation ichidagi alohida nazorat nuqtasi: raw buzilmaydi, DWH ga faqat versionlangan prepared data ketadi.",
   },
   gx: {
     does: "Prepared data sifatini tekshiradi: record count, id mavjudligi, schema bo'sh emasligi va null threshold.",
@@ -298,8 +309,15 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   preparation: {
     input_ref: "MinIO raw-zone/{source}/{run_id}/raw.json",
     output_ref: "MinIO raw-zone/{source}/{run_id}/prepared.json",
-    input_preview: { operation: "profile + normalize + manual correction rules" },
+    input_preview: { operation: "profile + normalize + prepared draft" },
     artifacts: { module: "backend/app/preparation.py", persisted_object: "prepared.json", raw_immutable: true },
+  },
+  imputation: {
+    input_ref: "prepared draft rows",
+    output_ref: "prepared.json with record version IDs",
+    input_preview: { operation: "null scan + imputation + manual edit" },
+    output_preview: { version_flow: "raw:v0 -> prep:v1 -> qa:v2 -> dwh:v3", status: "READY_FOR_QUALITY" },
+    artifacts: { module: "backend/app/preparation.py", metric: "imputed_values", record_versions: true },
   },
   gx: { artifacts: { validator: "backend/app/quality.py", checks: ["record_count", "primary_key", "schema_not_empty", "null_threshold"] } },
   spark: { artifacts: { pyspark_job: "spark/jobs/dummyjson_curate.py", runtime_transform: "backend/app/transform.py" } },
@@ -362,6 +380,7 @@ const PLAYBACK_ORDER = [
   "landing",
   "raw",
   "preparation",
+  "imputation",
   "gx",
   "airflow",
   "spark",
@@ -405,6 +424,19 @@ export function Dashboard() {
   const stageResults = useMemo(() => {
     const map = new Map<string, StageResult>();
     result?.stages.forEach((stage) => map.set(stage.id, stage));
+    const preparation = map.get("preparation");
+    if (preparation && !map.has("imputation")) {
+      map.set("imputation", {
+        ...preparation,
+        id: "imputation",
+        name: "Imputatsiya / Edit",
+        sequence: preparation.sequence + 0.1,
+        message: `imputed=${preparation.metrics?.imputed_values ?? 0}, manual_edits=${preparation.metrics?.manual_corrections_applied ?? 0}, record_versions=ready`,
+        input_ref: preparation.output_ref,
+        output_ref: preparation.output_ref,
+        data_format: "Record-level prepared version IDs",
+      });
+    }
     return map;
   }, [result]);
 
@@ -1359,7 +1391,7 @@ function StageSidePanel({
 }
 
 function PreparationLifecycle({ stage, result }: { stage: StageMeta; result?: StageResult }) {
-  if (stage.id !== "preparation") return null;
+  if (stage.id !== "preparation" && stage.id !== "imputation") return null;
 
   const metrics = result?.metrics ?? {};
   const artifacts = result?.artifacts ?? {};
