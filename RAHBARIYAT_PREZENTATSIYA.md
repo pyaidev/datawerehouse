@@ -456,3 +456,20 @@ Statuslar:
 Rahbariyatga aytiladigan asosiy gap:
 
 "Data Preparation - bu DWH oldidagi nazorat eshigi. Raw data buzilmaydi, har bir tuzatish yangi prepared version sifatida saqlanadi. Faqat shu version quality checkdan o'tgandan keyin Data Warehouse ga yuboriladi. Shuning uchun keyinchalik qaysi ma'lumot qachon, qanday tuzatilgani va qaysi version DWH ga ketgani ko'rinadi."
+
+## 17. Imputatsiya va edit jarayoni
+
+Data Preparation ichida `IMPUTATION_EDIT` bosqichi qo'shildi. Bu bosqichning vazifasi - DWH ga sifatsiz yoki bo'sh qiymat yubormaslik.
+
+Jarayon:
+
+- blank yoki `NULL` qiymatlar aniqlanadi;
+- column bo'yicha default yoki hisoblangan qiymat tanlanadi;
+- qiymat prepared version ichida to'ldiriladi;
+- operator kerak bo'lsa shu recordni qo'lda edit qiladi;
+- har bir record uchun `raw:v0`, `prep:v1`, `qa:v2`, `dwh:v3` ko'rinishidagi version ID ko'rsatiladi;
+- faqat prepared/quality version tayyor bo'lgandan keyin data DWH ga ketadi.
+
+Rahbariyatga aytiladigan gap:
+
+"Bu bosqichda ma'lumot avtomatik to'ldiriladi yoki operator tomonidan edit qilinadi. Raw data o'zgarmaydi. Har bir record o'z version ID siga ega bo'ladi, shu sababli qaysi record qaysi version bilan DWH ga ketgani kuzatiladi."

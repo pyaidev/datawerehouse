@@ -162,7 +162,7 @@ const processMap: Record<string, string[]> = {
   kafka: ["Build event", "Serialize JSON", "Publish to dwh.ingestion.events"],
   landing: ["Build object key", "Write landing JSON", "Return S3 reference"],
   raw: ["Normalize collection", "Write raw rows", "Catalog raw object"],
-  preparation: ["RAW_RECEIVED: raw object o'qildi", "PROFILED: column/type profile olindi", "NORMALIZED: trim va null normalize", "MANUAL_CORRECTION: qo'lda tuzatishlar", "VERSION_SAVED: prepared v1 saqlandi", "READY_FOR_DWH: qualitydan keyin warehousega ketadi"],
+  preparation: ["RAW_RECEIVED: raw object o'qildi", "PROFILED: column/type profile olindi", "NORMALIZED: trim va null normalize", "IMPUTATION_EDIT: bo'sh qiymatlarni to'ldirish", "MANUAL_CORRECTION: qo'lda tuzatishlar", "VERSION_SAVED: prepared v1 saqlandi", "READY_FOR_DWH: qualitydan keyin warehousega ketadi"],
   gx: ["Record count", "Primary key", "Schema and null threshold"],
   spark: ["Read raw", "Transform dataframe", "Write curated model"],
   curated: ["Business mapping", "Conformed columns", "Write curated JSON"],
@@ -206,9 +206,9 @@ const stageDescriptions: Record<string, StageDescription> = {
     result: "Keyingi validation va transform uchun normalized raw rows tayyor bo'ladi.",
   },
   preparation: {
-    does: "Raw datani DWH ga yuborishdan oldin profil qiladi, string va bo'sh qiymatlarni normalize qiladi hamda operator kiritgan qo'lda tuzatishlarni qo'llaydi.",
-    flow: "Raw rowlar o'zgarmas nusxa sifatida qoladi. Correction rule record_id va column bo'yicha tekshiriladi, qiymat original typega moslashtiriladi va prepared.json versiyasi yoziladi.",
-    result: "Prepared preview, column profile, applied/rejected correction auditi va MinIO path hosil bo'ladi. Quality va transform faqat shu versiyadan davom etadi.",
+    does: "Raw datani DWH ga yuborishdan oldin profil qiladi, string va bo'sh qiymatlarni normalize qiladi, bo'sh qiymatlarni imputatsiya qiladi hamda operator kiritgan qo'lda tuzatishlarni qo'llaydi.",
+    flow: "Raw rowlar o'zgarmas nusxa sifatida qoladi. Avval blank/null qiymatlar column default yoki hisoblangan qiymat bilan imputatsiya qilinadi, keyin correction rule record_id va column bo'yicha tekshiriladi va prepared.json versiyasi yoziladi.",
+    result: "Prepared preview, column profile, imputation auditi, applied/rejected correction auditi va MinIO path hosil bo'ladi. Quality va transform faqat shu versiyadan davom etadi.",
     note: "Qo'lda tuzatish raw objectni o'zgartirmaydi; yangi pipeline run ichida versionlangan prepared object yaratiladi.",
   },
   gx: {
@@ -354,7 +354,7 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   },
 };
 
-const PLAYBACK_STEP_MS = 5000;
+const PLAYBACK_STEP_MS = 3000;
 const PLAYBACK_ORDER = [
   "fastapi",
   "nifi",
@@ -606,7 +606,7 @@ export function Dashboard() {
             </div>
             <div className="panelActions">
               {result && <span className={`playbackBadge ${playbackRunning ? "running" : ""}`}>{Math.max(playbackPosition, 0)}/{playbackTotal}</span>}
-              <span className="stepDuration"><Icon name="clock" /> 5 soniya / step</span>
+              <span className="stepDuration"><Icon name="clock" /> 3 soniya / step</span>
               <button className="smallButton" onClick={() => result && startStagePlayback(result)} disabled={!result || running || playbackRunning}><Icon name="play" /> Qayta ko'rish</button>
               <button className="iconButton" onClick={loadInitial} disabled={running} aria-label="Backend statusini yangilash" title="Backend statusini yangilash"><Icon name="refresh" /></button>
             </div>
@@ -902,6 +902,7 @@ function PreparationWorkbench({
             <ReportValue label="Columns" value={String(metrics.columns_profiled ?? 0)} />
             <ReportValue label="Trimmed" value={String(metrics.trimmed_values ?? 0)} />
             <ReportValue label="Blank to NULL" value={String(metrics.blank_to_null ?? 0)} />
+            <ReportValue label="Imputed" value={String(metrics.imputed_values ?? 0)} />
             <ReportValue label="Applied" value={String(metrics.manual_corrections_applied ?? 0)} />
             <ReportValue label="Rejected" value={String(metrics.manual_corrections_rejected ?? 0)} />
           </div>
@@ -1083,7 +1084,7 @@ function RunReport({
         )}
 
         <div className="reportFooter">
-          <span>{playbackRunning ? "5 soniyalik tushuntirish davom etmoqda" : "Timeline va lineage tekshirishga tayyor"}</span>
+          <span>{playbackRunning ? "3 soniyalik tushuntirish davom etmoqda" : "Timeline va lineage tekshirishga tayyor"}</span>
           {result.status === "error" && (
             <button className="retryButton" onClick={onRetry} disabled={running || playbackRunning}>
               <Icon name="refresh" /> Retry normal run
@@ -1252,10 +1253,10 @@ function ScenarioCanvas({
           if (isPlaying) {
             visualState = "playing";
             stateLabel = stageResult
-              ? "RUNNING 5s"
+              ? "RUNNING 3s"
               : codeStatus === "not_connected"
                 ? "NOT CONNECTED"
-                : "AVAILABLE 5s";
+                : "AVAILABLE 3s";
           } else if (stageResult) {
             if (playbackStarted && !isVisited) {
               visualState = "queued";
@@ -1362,6 +1363,7 @@ function PreparationLifecycle({ stage, result }: { stage: StageMeta; result?: St
 
   const metrics = result?.metrics ?? {};
   const artifacts = result?.artifacts ?? {};
+  const imputed = Number(metrics.imputed_values ?? 0);
   const applied = Number(metrics.manual_corrections_applied ?? 0);
   const rejected = Number(metrics.manual_corrections_rejected ?? 0);
   const rows = Number(metrics.output_rows ?? metrics.rows ?? 0);
@@ -1369,6 +1371,56 @@ function PreparationLifecycle({ stage, result }: { stage: StageMeta; result?: St
   const executed = Boolean(result);
   const hasWarnings = rejected > 0 || result?.status === "warning";
 
+  const previewRows = Array.isArray(result?.output_preview) ? result.output_preview as Record<string, unknown>[] : [];
+  const recordVersions = previewRows.slice(0, 6).map((row, index) => {
+    const recordId = String(row.id ?? row.dw_id ?? `row-${index + 1}`);
+    const base = recordId.replace(/[^a-zA-Z0-9_-]/g, "").slice(-8) || String(index + 1).padStart(2, "0");
+    return {
+      recordId,
+      rawVersion: `raw:${base}:v0`,
+      preparedVersion: `prep:${base}:v1`,
+      qualityVersion: `qa:${base}:v2`,
+      dwhVersion: `dwh:${base}:v3`,
+      status: result ? "READY_FOR_DWH" : "WAITING",
+    };
+  });
+  const versionRows = [
+    {
+      version: "v0",
+      title: "Raw original",
+      status: executed ? "LOCKED" : "WAITING",
+      note: "Manbadan kelgan asl data. Bu version o'zgartirilmaydi.",
+      path: result?.input_ref ?? "raw.json kutilmoqda",
+    },
+    {
+      version: "v1",
+      title: "Prepared draft",
+      status: executed ? "SAVED" : "WAITING",
+      note: "Normalize va qo'lda tuzatishlardan keyingi yangi version.",
+      path: preparedKey,
+    },
+    {
+      version: "v2",
+      title: "Quality checked",
+      status: executed ? (hasWarnings ? "WARNING" : "PASSED") : "WAITING",
+      note: "Great Expectations quality gate uchun yuboriladigan version.",
+      path: "prepared -> quality validation",
+    },
+    {
+      version: "v3",
+      title: "Curated model",
+      status: executed ? "READY" : "WAITING",
+      note: "Business schema va analytics fieldlarga aylantirilgan version.",
+      path: "curated.json / Curated Zone",
+    },
+    {
+      version: "DWH",
+      title: "Warehouse load",
+      status: executed ? "READY_FOR_DWH" : "WAITING",
+      note: "Qualitydan o'tgan version ClickHouse DWH ga ketadi.",
+      path: "ClickHouse curated_events",
+    },
+  ];
   const lifecycle = [
     {
       code: "RAW_RECEIVED",
@@ -1386,6 +1438,12 @@ function PreparationLifecycle({ stage, result }: { stage: StageMeta; result?: St
       code: "NORMALIZED",
       title: "Tozalash / normalize",
       text: `${metrics.trimmed_values ?? 0} trim, ${metrics.blank_to_null ?? 0} blank -> NULL amali bajarildi.`,
+      state: executed ? "done" : "waiting",
+    },
+    {
+      code: "IMPUTATION_EDIT",
+      title: "Imputatsiya / Edit",
+      text: `${imputed} ta bo'sh qiymat column default/hisoblangan qiymat bilan to'ldirildi. Kerak bo'lsa operator shu recordni qo'lda edit qiladi.`,
       state: executed ? "done" : "waiting",
     },
     {
@@ -1436,6 +1494,54 @@ function PreparationLifecycle({ stage, result }: { stage: StageMeta; result?: St
           <strong>Qoida</strong>
           <b>{"Raw immutable -> Prepared version -> Quality -> DWH"}</b>
         </span>
+      </div>
+      <div className="recordVersionTable">
+        <div className="recordVersionHead">
+          <strong>Har bir ma'lumotning version ID lari</strong>
+          <span>{recordVersions.length || 0} record preview</span>
+        </div>
+        <div className="recordVersionRows">
+          {recordVersions.length ? recordVersions.map((item) => (
+            <article key={item.recordId} className="recordVersionRow">
+              <span>
+                <strong>record_id</strong>
+                <code>{item.recordId}</code>
+              </span>
+              <span>
+                <strong>Raw</strong>
+                <code>{item.rawVersion}</code>
+              </span>
+              <span>
+                <strong>Prepared</strong>
+                <code>{item.preparedVersion}</code>
+              </span>
+              <span>
+                <strong>Quality</strong>
+                <code>{item.qualityVersion}</code>
+              </span>
+              <span>
+                <strong>DWH</strong>
+                <code>{item.dwhVersion}</code>
+              </span>
+              <b>{item.status}</b>
+            </article>
+          )) : (
+            <article className="recordVersionEmpty">Pipeline ishga tushgandan keyin har bir record uchun version_id lar shu yerda chiqadi.</article>
+          )}
+        </div>
+      </div>
+      <div className="prepVersionTimeline">
+        {versionRows.map((item) => (
+          <article key={item.version} className={["prepVersionCard", item.status.toLowerCase()].join(" ")}>
+            <span>{item.version}</span>
+            <div>
+              <strong>{item.title}</strong>
+              <em>{item.status}</em>
+              <p>{item.note}</p>
+              <code>{item.path}</code>
+            </div>
+          </article>
+        ))}
       </div>
       <ol className="prepLifecycleList">
         {lifecycle.map((item, index) => (

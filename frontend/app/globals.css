@@ -369,7 +369,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(35, 87, 183, 0.14), 0 16px 32px rgba(24, 33, 46, 0.14);
   transform: translateY(-2px);
-  animation: stagePulse 5s ease-in-out infinite;
+  animation: stagePulse 3s ease-in-out infinite;
 }
 .stageCard.playing .stageIcon { background: var(--green); }
 .stageCard.playing::after {
@@ -381,7 +381,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   width: 100%;
   background: linear-gradient(90deg, var(--blue), var(--green));
   transform-origin: left center;
-  animation: stageProgress 5s linear infinite;
+  animation: stageProgress 3s linear infinite;
 }
 .modalBackdrop.playbackOpen { animation: backdropFade 360ms ease both; }
 .modal { animation: modalRise 460ms ease both; }
@@ -506,6 +506,113 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
   color: #173d65;
   font-size: 10px;
 }
+.recordVersionTable {
+  display: grid;
+  gap: 8px;
+}
+.recordVersionHead {
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #10233f;
+  color: #fff;
+  border-radius: 7px;
+}
+.recordVersionHead strong { font-size: 11px; }
+.recordVersionHead span { color: #d7e7fb; font-size: 9px; font-weight: 850; }
+.recordVersionRows { display: grid; gap: 7px; }
+.recordVersionRow {
+  min-width: 0;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid #3274e8;
+  border-radius: 7px;
+}
+.recordVersionRow span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.recordVersionRow strong {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+.recordVersionRow code {
+  overflow: hidden;
+  color: #174477;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recordVersionRow b {
+  grid-column: 1 / -1;
+  padding: 5px 7px;
+  color: #0e7144;
+  background: #ddf6ea;
+  border-radius: 5px;
+  font-size: 9px;
+  text-align: center;
+}
+.recordVersionEmpty {
+  padding: 10px;
+  color: var(--muted);
+  background: #fff;
+  border: 1px dashed var(--line-strong);
+  border-radius: 7px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.prepVersionTimeline {
+  display: grid;
+  gap: 7px;
+}
+.prepVersionCard {
+  min-width: 0;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid #aab4c2;
+  border-radius: 7px;
+}
+.prepVersionCard.saved,
+.prepVersionCard.locked,
+.prepVersionCard.passed,
+.prepVersionCard.ready { border-left-color: #17a565; }
+.prepVersionCard.ready_for_dwh { border-left-color: #3274e8; background: #f1f6ff; }
+.prepVersionCard.warning { border-left-color: #d68713; background: #fff9ed; }
+.prepVersionCard.waiting { opacity: .78; }
+.prepVersionCard > span {
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #10233f;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 950;
+}
+.prepVersionCard.ready_for_dwh > span { background: #3274e8; }
+.prepVersionCard.saved > span,
+.prepVersionCard.locked > span,
+.prepVersionCard.passed > span,
+.prepVersionCard.ready > span { background: #17a565; }
+.prepVersionCard.warning > span { background: #d68713; }
+.prepVersionCard div { min-width: 0; display: grid; gap: 3px; }
+.prepVersionCard strong { font-size: 11px; }
+.prepVersionCard em { color: #526171; font-size: 8px; font-style: normal; font-weight: 950; }
+.prepVersionCard p { margin: 0; color: #334155; font-size: 10px; line-height: 1.35; }
+.prepVersionCard code { overflow-wrap: anywhere; color: #174477; font-size: 9px; }
 .prepLifecycleList {
   margin: 0;
   padding: 0;
@@ -655,7 +762,7 @@ th { position: sticky; top: 0; z-index: 1; color: var(--muted); background: #f6f
 .scenarioNode.playing .nodeStateDot { background: #3274e8; }
 .scenarioNode.playing .nodeStatus { color: #1557bd; background: #e6efff; }
 .nodeProgress { width: 82px; height: 3px; margin-top: 4px; overflow: hidden; background: #dfe5ed; border-radius: 2px; }
-.nodeProgress::after { content: ""; display: block; width: 100%; height: 100%; background: #3274e8; transform-origin: left; animation: stageProgress 5s linear both; }
+.nodeProgress::after { content: ""; display: block; width: 100%; height: 100%; background: #3274e8; transform-origin: left; animation: stageProgress 3s linear both; }
 
 .canvasGroupLabel { position: absolute; z-index: 2; color: #778193; font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .ingestionLabel { left: 28px; top: 145px; }

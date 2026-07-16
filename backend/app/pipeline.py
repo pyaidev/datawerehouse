@@ -300,6 +300,8 @@ class PipelineRunner:
                     "columns_profiled": preparation_profile.get("columns", 0),
                     "trimmed_values": preparation_profile.get("trimmed_values", 0),
                     "blank_to_null": preparation_profile.get("blank_to_null", 0),
+                    "imputed_values": preparation_profile.get("imputed_values", 0),
+                    "imputation_rules": preparation_profile.get("imputation_rules", []),
                     "manual_corrections_applied": preparation_profile.get("manual_corrections_applied", 0),
                     "manual_corrections_rejected": preparation_profile.get("manual_corrections_rejected", 0),
                 },
