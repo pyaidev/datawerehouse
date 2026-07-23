@@ -7,8 +7,10 @@ from uuid import uuid4
 
 import httpx
 
+from .analytics import SupersetService, TrinoQueryService
 from .config import Settings
 from .databases import MetadataStore, WarehouseStore
+from .estat_data import estat_12_korxona
 from .kafka_bus import EventBus
 from .preparation import prepare_rows
 from .quality import validate_rows
@@ -26,6 +28,8 @@ class PipelineRunner:
         self.event_bus = EventBus(settings)
         self.metadata_store = MetadataStore(settings)
         self.warehouse_store = WarehouseStore(settings)
+        self.trino_service = TrinoQueryService(settings)
+        self.superset_service = SupersetService(settings)
 
     async def run(self, request: PipelineRunRequest) -> PipelineRunResult:
         run_started_at = datetime.now(UTC)
@@ -161,9 +165,18 @@ class PipelineRunner:
                 )
                 return None
 
-        extract_url = f"{self.settings.dummyjson_base_url}{source['endpoint']}"
+        extract_url = (
+            source["endpoint"]
+            if source.get("local_test")
+            else f"{self.settings.dummyjson_base_url}{source['endpoint']}"
+        )
 
         async def extract() -> dict[str, Any]:
+            if source.get("local_csv"):
+                return estat_12_korxona(
+                    self.settings.estat_csv_path,
+                    limit=request.limit,
+                )
             if source.get("local_test"):
                 return local_null_products(limit=request.limit)
             async with httpx.AsyncClient(timeout=30) as client:
@@ -429,6 +442,100 @@ class PipelineRunner:
             },
         )
 
+        async def query_trino() -> dict[str, Any]:
+            return await self.trino_service.query_run(run_id)
+
+        def trino_details(result: dict[str, Any]) -> dict[str, Any]:
+            rows = result.get("rows") or []
+            summary = rows[0] if rows else {}
+            return {
+                "message": (
+                    f"query_id={result.get('query_id')}, "
+                    f"records={summary.get('records', 0)}"
+                ),
+                "output_ref": (
+                    f"trino://{self.settings.trino_catalog}."
+                    f"{self.settings.trino_schema}.curated_events"
+                ),
+                "output_preview": result,
+                "metrics": {
+                    "records_queried": summary.get("records", 0),
+                    "metric_sum": summary.get("metric_sum", 0),
+                    "source_count": summary.get("source_count", 0),
+                },
+                "data_size_bytes": json_size(result),
+                "data_format": "Trino SQL result",
+                "artifacts": {
+                    "endpoint": self.settings.trino_url,
+                    "catalog": self.settings.trino_catalog,
+                    "schema": self.settings.trino_schema,
+                    "connector": "ClickHouse",
+                },
+            }
+
+        await stage(
+            "trino",
+            "Trino distributed SQL query",
+            query_trino,
+            input_ref=(
+                f"clickhouse://{self.settings.clickhouse_database}/"
+                "curated_events"
+            ),
+            input_preview={
+                "run_id": run_id,
+                "catalog": self.settings.trino_catalog,
+                "schema": self.settings.trino_schema,
+                "table": "curated_events",
+            },
+            detail_builder=trino_details,
+        )
+
+        async def provision_superset() -> dict[str, Any]:
+            return await self.superset_service.ensure_clickhouse_dataset(run_id)
+
+        await stage(
+            "superset",
+            "Apache Superset dashboard provisioning",
+            provision_superset,
+            input_ref=(
+                f"clickhouse://{self.settings.clickhouse_database}/"
+                "curated_events"
+            ),
+            input_preview={
+                "database_name": self.settings.superset_database_name,
+                "schema": self.settings.superset_dataset_schema,
+                "table": self.settings.superset_dataset_table,
+            },
+            detail_builder=lambda result: {
+                "message": (
+                    f"database_id={result['database_id']}, "
+                    f"dataset_id={result['dataset_id']}, "
+                    f"dashboard_id={result['dashboard_id']}, "
+                    f"chart_id={result['chart_id']}"
+                ),
+                "output_ref": result["dashboard_url"],
+                "output_preview": result,
+                "metrics": {
+                    "database_created": int(result["database_created"]),
+                    "dataset_created": int(result["dataset_created"]),
+                    "dataset_id": result["dataset_id"],
+                    "dashboard_id": result["dashboard_id"],
+                    "chart_id": result["chart_id"],
+                },
+                "data_size_bytes": json_size(result),
+                "data_format": "Superset REST resource",
+                "artifacts": {
+                    "service_url": self.settings.superset_public_url,
+                    "database": self.settings.superset_database_name,
+                    "dataset": (
+                        f"{self.settings.superset_dataset_schema}."
+                        f"{self.settings.superset_dataset_table}"
+                    ),
+                    "driver": "clickhouse-connect",
+                },
+            },
+        )
+
         audit = {
             "run_id": run_id,
             "source": request.source,
@@ -477,7 +584,7 @@ class PipelineRunner:
             quality_checks=quality_checks,
             warnings=warnings,
             raw_preview=raw_rows[:10],
-            prepared_preview=prepared_rows[:10],
+            prepared_preview=prepared_rows,
             curated_preview=curated_rows[:10],
             lineage=build_lineage(raw_rows, prepared_rows, curated_rows, request.source, run_id),
         )
@@ -544,4 +651,3 @@ def build_lineage(
             }
         )
     return lineage
-

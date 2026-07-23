@@ -4,6 +4,7 @@ export type SourceDefinition = {
   collection: string;
   entity: string;
   local_test?: boolean;
+  local_csv?: boolean;
 };
 
 export type SourcesResponse = Record<string, SourceDefinition>;

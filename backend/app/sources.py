@@ -7,10 +7,12 @@ SOURCES = {
         "local_test": True,
     },
     "products": {
-        "title": "eStat 4.0",
-        "endpoint": "/products",
-        "collection": "products",
-        "entity": "product",
+        "title": "eStat 4.0 - 12-korxona Iyun",
+        "endpoint": "/test-api/estat/12-korxona",
+        "collection": "records",
+        "entity": "enterprise_report",
+        "local_test": True,
+        "local_csv": True,
     },
     "users": {
         "title": "SIAT API",

@@ -1,4 +1,4 @@
-﻿from datetime import UTC, datetime
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -24,7 +24,19 @@ def curate_rows(rows: list[dict], *, source_id: str, source_title: str, mode: st
             "loaded_at": loaded_at,
         }
 
-        if source_id == "products":
+        if source_id == "products" and row.get("inn"):
+            metric_name, metric_value = first_numeric_metric(row)
+            entity_value = row.get("g3")
+            entity_name = str(entity_value) if entity_value is not None else "INN {}".format(row.get("inn"))
+            record = {
+                **base,
+                "entity_name": entity_name,
+                "category": "section_{}".format(row.get("section") or "unknown"),
+                "metric_name": metric_name,
+                "metric_value": metric_value,
+                "status": "status_{}".format(row.get("status") or "unknown"),
+            }
+        elif source_id == "products":
             record = {
                 **base,
                 "entity_name": row.get("title"),
@@ -63,6 +75,19 @@ def curate_rows(rows: list[dict], *, source_id: str, source_title: str, mode: st
         curated.append(record)
 
     return curated
+
+
+def first_numeric_metric(row: dict) -> tuple[str, float]:
+    for index in range(4, 46):
+        field = f"g{index}"
+        value = row.get(field)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return field, float(value)
+    for field in ("g2", "g1"):
+        value = row.get(field)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return field, float(value)
+    return "reported_value", 0.0
 
 
 def first_tag(row: dict) -> str | None:

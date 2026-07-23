@@ -1,6 +1,6 @@
 # Data Warehouse Operations Console
 
-Real API bilan ishlaydigan Data Warehouse demo stack. Loyiha faqat UI maket emas: FastAPI pipeline tashqi test API dan data oladi, Kafka event chiqaradi, MinIO landing/raw/prepared/curated object yozadi, manual correction va data quality check qiladi, curated model yaratadi, ClickHouse ga load qiladi va PostgreSQL ga audit yozadi. Next.js frontend har bir stage bosilganda input, process, output, metrics va artifacts/code tafsilotlarini o'ng inspector sidebarida ko'rsatadi.
+Real API bilan ishlaydigan Data Warehouse demo stack. Loyiha faqat UI maket emas: FastAPI pipeline tashqi test API dan data oladi, Kafka event chiqaradi, MinIO landing/raw/prepared/curated object yozadi, manual correction va data quality check qiladi, curated model yaratadi, ClickHouse ga load qiladi, Trino orqali real SQL verification bajaradi, Supersetda ClickHouse database/datasetini avtomatik provision qiladi va PostgreSQL ga audit yozadi. Next.js frontend har bir stage bosilganda input, process, output, metrics va artifacts/code tafsilotlarini o'ng inspector sidebarida ko'rsatadi.
 
 ## Stack
 
@@ -10,7 +10,9 @@ Real API bilan ishlaydigan Data Warehouse demo stack. Loyiha faqat UI maket emas
 - Object Storage: MinIO
 - Validation: Great Expectations style checks
 - Transform: Python transform + PySpark job namunasi
-- Warehouse: ClickHouse
+- Warehouse: ClickHouse 25.3
+- Distributed SQL: Trino 482
+- BI: Apache Superset 6.0 + clickhouse-connect
 - ODS / metadata: PostgreSQL
 - Orchestration assets: Airflow DAG, NiFi setup script, dbt models
 - Monitoring: Prometheus config
@@ -54,7 +56,9 @@ http://172.16.4.138:7777
 - Pipeline endpoint: `POST http://localhost:8000/pipeline/run`
 - MinIO console: `http://localhost:9001` (`minioadmin` / `minioadmin`)
 - NiFi: `http://localhost:8080`
-- Airflow: `http://localhost:8088` (`admin` / `admin`)
+- Airflow: `http://localhost:8088` (`admin` / `admin`)
+- Trino UI/API: `http://localhost:8089`
+- Apache Superset: `http://localhost:8087` (`admin` / `admin`)
 - Prometheus: `http://localhost:9095`
 
 ## API Test
@@ -122,7 +126,10 @@ Test failure requestiga failure_stage maydoni beriladi. Qiymatlar: none, kafka, 
 - Schemas: `backend/app/schemas.py`
 - MinIO connector: `backend/app/storage.py`
 - Kafka connector: `backend/app/kafka_bus.py`
-- ClickHouse/PostgreSQL connector: `backend/app/databases.py`
+- ClickHouse/PostgreSQL connector: `backend/app/databases.py`
+- Trino/Superset connector: `backend/app/analytics.py`
+- Trino catalog: `trino/catalog/clickhouse.properties`
+- Superset image/config: `superset/Dockerfile`, `superset/superset_config.py`
 - Transform: `backend/app/transform.py`
 - Quality checks: `backend/app/quality.py`
 - Next dashboard: `frontend/components/Dashboard.tsx`
@@ -174,6 +181,17 @@ PostgreSQL audit tekshiruv namunasi:
 
 ```powershell
 docker compose exec -T postgres psql -U dwh -d dwh -c "select run_id, source, mode, records, quality_score, status from pipeline_runs order by created_at desc limit 5;"
+```
+
+
+Trino orqali ClickHouse query:
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8089/v1/statement -Headers @{"X-Trino-User"="dwh";"X-Trino-Catalog"="clickhouse";"X-Trino-Schema"="dwh"} -ContentType "text/plain" -Body "select count(*) from clickhouse.dwh.curated_events"
+```
+Superset health va UI:
+```powershell
+Invoke-RestMethod http://localhost:8087/health
+Start-Process http://localhost:8087
 ```
 
 ##  Cheklovlar

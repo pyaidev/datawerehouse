@@ -16,6 +16,20 @@ const storageCode = [
 ].join("\n");
 
 export const stageCodeSamples: Record<string, StageCodeSample> = {
+  source: {
+    file: "frontend/components/Dashboard.tsx",
+    language: "typescript",
+    status: "asset",
+    code: [
+      "const source = PRIMARY_SOURCE_OPTIONS.find(",
+      "  (item) => item.id === selectedSourceId",
+      ");",
+      "await fetch('/api/backend/pipeline/run', {",
+      "  method: 'POST',",
+      "  body: JSON.stringify({ source: source?.id, limit, mode }),",
+      "});",
+    ].join("\n"),
+  },
   fastapi: {
     file: "backend/app/main.py",
     language: "python",
@@ -106,6 +120,22 @@ export const stageCodeSamples: Record<string, StageCodeSample> = {
     ].join("\n"),
   },
   curated: { file: "backend/app/storage.py", language: "python", status: "real", code: storageCode },
+  warehouse: {
+    file: "dbt/dwh_project/models/marts/fct_source_metrics.sql",
+    language: "sql",
+    status: "asset",
+    code: [
+      "{{ config(materialized='table') }}",
+      "",
+      "select",
+      "  source_entity, category, metric_name,",
+      "  count() as record_count,",
+      "  sum(metric_value) as metric_sum,",
+      "  avg(metric_value) as metric_avg",
+      "from {{ ref('stg_curated_events') }}",
+      "group by source_entity, category, metric_name",
+    ].join("\n"),
+  },
   clickhouse: {
     file: "backend/app/databases.py",
     language: "python",
@@ -165,16 +195,36 @@ export const stageCodeSamples: Record<string, StageCodeSample> = {
     ].join("\n"),
   },
   superset: {
-    file: "NOT CONNECTED",
-    language: "text",
-    status: "not_connected",
-    code: "Superset service va dataset konfiguratsiyasi hali repositoryga ulanmagan.\nClickHouse curated_events jadvali BI dataset uchun tayyor.",
+    file: "backend/app/analytics.py",
+    language: "python",
+    status: "real",
+    code: [
+      "login = await client.post('/api/v1/security/login', json=credentials)",
+      "csrf = await client.get('/api/v1/security/csrf_token/', headers=auth)",
+      "database = await ensure_database(",
+      "    name='ClickHouse DWH',",
+      "    uri='clickhousedb://dwh:***@clickhouse:8123/dwh',",
+      ")",
+      "dataset = await ensure_dataset(database.id, 'dwh', 'curated_events')",
+      "return {'database_id': database.id, 'dataset_id': dataset.id}",
+    ].join("\n"),
   },
   trino: {
-    file: "NOT CONNECTED",
-    language: "text",
-    status: "not_connected",
-    code: "Trino service, catalog va connector konfiguratsiyasi hali compose ichida mavjud emas.",
+    file: "backend/app/analytics.py",
+    language: "python",
+    status: "real",
+    code: [
+      "query = '''",
+      "select count(*) records, sum(metric_value) metric_sum",
+      "from clickhouse.dwh.curated_events",
+      "where run_id = ?",
+      "'''",
+      "response = await client.post('/v1/statement', content=query, headers={",
+      "    'X-Trino-User': 'dwh',",
+      "    'X-Trino-Catalog': 'clickhouse',",
+      "    'X-Trino-Schema': 'dwh',",
+      "})",
+    ].join("\n"),
   },
   api: {
     file: "frontend/app/api/backend/pipeline/run/route.ts",

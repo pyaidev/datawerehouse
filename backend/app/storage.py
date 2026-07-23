@@ -29,6 +29,7 @@ class ObjectStore:
             if self.settings.strict_external_services:
                 raise
             return self._write_local(bucket, key, payload, exc)
+        
 
     def _ensure_bucket(self, bucket: str) -> None:
         try:

@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     strict_external_services: bool = False
 
     dummyjson_base_url: str = "https://dummyjson.com"
+    estat_csv_path: str = "12-korxona.csv"
 
     minio_endpoint: str = "http://localhost:9000"
     minio_access_key: str = "minioadmin"
@@ -28,6 +29,20 @@ class Settings(BaseSettings):
     clickhouse_user: str = "default"
     clickhouse_password: str = ""
     clickhouse_database: str = "dwh"
+
+    trino_url: str = "http://localhost:8089"
+    trino_user: str = "dwh"
+    trino_catalog: str = "clickhouse"
+    trino_schema: str = "dwh"
+
+    superset_url: str = "http://localhost:8087"
+    superset_public_url: str = "http://localhost:8087"
+    superset_username: str = "admin"
+    superset_password: str = "admin"
+    superset_database_name: str = "ClickHouse DWH"
+    superset_clickhouse_uri: str = "clickhousedb://dwh:dwh@clickhouse:8123/dwh"
+    superset_dataset_schema: str = "dwh"
+    superset_dataset_table: str = "curated_events"
 
     local_artifact_dir: str = "data/artifacts"
 

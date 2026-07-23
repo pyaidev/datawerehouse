@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import Any
 
 import clickhouse_connect
@@ -104,6 +104,81 @@ class WarehouseStore:
             if self.settings.strict_external_services:
                 raise
             raise
+
+    def fetch_curated(
+        self,
+        run_id: str,
+        *,
+        limit: int = 20,
+        dw_id: str | None = None,
+        version_id: str | None = None,
+    ) -> dict[str, Any]:
+        safe_limit = max(1, min(limit, 100))
+        client = clickhouse_connect.get_client(
+            host=self.settings.clickhouse_host,
+            port=self.settings.clickhouse_port,
+            username=self.settings.clickhouse_user,
+            password=self.settings.clickhouse_password,
+            database=self.settings.clickhouse_database,
+        )
+        filters = ["run_id = {run_id:String}"]
+        parameters: dict[str, Any] = {"run_id": run_id}
+        if dw_id:
+            filters.append("dw_id = {dw_id:String}")
+            parameters["dw_id"] = dw_id
+        where_clause = " and ".join(filters)
+        columns = [
+            "dw_id",
+            "run_id",
+            "source_system",
+            "source_entity",
+            "ingestion_mode",
+            "loaded_at",
+            "entity_name",
+            "category",
+            "metric_name",
+            "metric_value",
+            "status",
+        ]
+        result = client.query(
+            f"""
+            select {", ".join(columns)}
+            from curated_events
+            where {where_clause}
+            order by loaded_at desc, dw_id
+            limit {safe_limit}
+            """,
+            parameters=parameters,
+        )
+        rows = [
+            {
+                column: value.isoformat() if isinstance(value, datetime) else value
+                for column, value in zip(result.column_names, row, strict=False)
+            }
+            for row in result.result_rows
+        ]
+        summary = client.query(
+            f"""
+            select count() as records, coalesce(sum(metric_value), 0) as metric_sum
+            from curated_events
+            where {where_clause}
+            """,
+            parameters=parameters,
+        )
+        records_total, metric_sum = summary.result_rows[0] if summary.result_rows else (0, 0)
+        return {
+            "source": "ClickHouse DWH",
+            "database": self.settings.clickhouse_database,
+            "table": "curated_events",
+            "run_id": run_id,
+            "selected_version_id": version_id,
+            "dw_id_filter": dw_id,
+            "records_total": int(records_total),
+            "metric_sum": float(metric_sum or 0),
+            "limit": safe_limit,
+            "columns": columns,
+            "rows": rows,
+        }
 
     @staticmethod
     def _normalize_value(column: str, value: Any) -> Any:

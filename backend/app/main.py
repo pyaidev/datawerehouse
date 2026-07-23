@@ -4,6 +4,8 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 from starlette.responses import Response
 
 from .config import get_settings
+from .databases import WarehouseStore
+from .estat_data import estat_12_korxona
 from .pipeline import PipelineRunner
 from .schemas import PipelineRunRequest, PipelineRunResult
 from .sources import SOURCES
@@ -38,6 +40,34 @@ def sources() -> dict:
 def test_products_null(limit: int = 20, skip: int = 0) -> dict:
     return local_null_products(limit=limit, skip=skip)
 
+
+@app.get("/test-api/estat/12-korxona")
+def test_estat_12_korxona(limit: int = 20, skip: int = 0) -> dict:
+    return estat_12_korxona(
+        settings.estat_csv_path,
+        limit=limit,
+        skip=skip,
+    )
+
+@app.get("/delivery/runs/{run_id}")
+def delivery_run(
+    run_id: str,
+    limit: int = 20,
+    dw_id: str | None = None,
+    version_id: str | None = None,
+) -> dict:
+    try:
+        return WarehouseStore(settings).fetch_curated(
+            run_id,
+            limit=limit,
+            dw_id=dw_id,
+            version_id=version_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"ClickHouse delivery query bajarilmadi: {exc}",
+        ) from exc
 
 @app.post("/pipeline/run", response_model=PipelineRunResult)
 async def run_pipeline(request: PipelineRunRequest) -> PipelineRunResult:

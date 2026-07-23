@@ -9,6 +9,7 @@ import type { CSSProperties } from "react";
 type Mode = "batch" | "stream" | "api";
 type View = "raw" | "prepared" | "curated";
 type FailureStage = "none" | "kafka" | "gx" | "clickhouse";
+type ResultModalStageId = "preparation" | "trino" | "superset" | "api";
 
 type StageMeta = {
   id: string;
@@ -72,44 +73,64 @@ type IconName =
   | "close";
 
 const stageCatalog: StageMeta[] = [
+  { id: "source", label: "Ma'lumot manbalari", layer: "Sources", detail: "4 ta manbadan bittasini tanlab pipeline run qilinadi", icon: "layers", color: "#475569" },
   { id: "fastapi", label: "FastAPI Gateway", layer: "Gateway", detail: "Source API dan data qabul qiladi", icon: "api", color: "#159570" },
   { id: "kafka", label: "NiFi / Kafka Ingestion", layer: "Ingestion", detail: "Flow routing va ingestion event", icon: "stream", color: "#252b36" },
   { id: "landing", label: "MinIO Landing / Raw", layer: "Data Lake", detail: "Original payload va raw rows MinIO ga yoziladi", icon: "bucket", color: "#2e8b57" },
   { id: "preparation", label: "Data Preparation / Imputation", layer: "Prepare", detail: "Profiling, null to'ldirish, edit va version", icon: "workflow", color: "#0e7490" },
   { id: "gx", label: "Quality Gate", layer: "Quality", detail: "DWH oldidan data quality nazorati", icon: "shield", color: "#16a34a" },
   { id: "spark", label: "Transform / Curated Model", layer: "Model", detail: "Business schema va curated data", icon: "spark", color: "#f97316" },
-  { id: "clickhouse", label: "Warehouse Modeling / ClickHouse", layer: "DWH", detail: "SQL model va analytical warehouse", icon: "warehouse", color: "#d99b00" },
+  { id: "warehouse", label: "Warehouse Modeling", layer: "SQL Model", detail: "dbt, fact/dimension va KPI modellari", icon: "code", color: "#e05d44" },
+  { id: "clickhouse", label: "ClickHouse DWH", layer: "DWH", detail: "Analytical table va real batch load", icon: "warehouse", color: "#d99b00" },
   { id: "postgres", label: "PostgreSQL Audit", layer: "Audit", detail: "Run metadata va monitoring auditi", icon: "database", color: "#336791" },
-  { id: "api", label: "Visualization / Delivery", layer: "Delivery", detail: "Portal, BI, API, query va export", icon: "globe", color: "#2563eb" },
+  { id: "trino", label: "Trino Query", layer: "Query", detail: "Bir nechta storage va bazada ad-hoc SQL", icon: "search", color: "#7c3aed" },
+  { id: "superset", label: "Apache Superset", layer: "BI", detail: "ClickHouse datasetidan dashboard va KPI", icon: "chart", color: "#16a6a1" },
+  { id: "api", label: "Visualization / Delivery", layer: "Delivery", detail: "Portal, API va export natijasi", icon: "globe", color: "#2563eb" },
 ];
 
-const SCENARIO_WIDTH = 1420;
-const SCENARIO_HEIGHT = 700;
+const PRIMARY_SOURCE_OPTIONS: Array<{ id: string; label: string; detail: string; icon: IconName }> = [
+  { id: "products", label: "eStat 4.0", detail: "12-korxona / Iyun CSV", icon: "database" },
+  { id: "local_null_products", label: "Local Test API", detail: "Null qiymatli JSON", icon: "api" },
+  { id: "users", label: "SIAT API", detail: "Idoralar integratsiyasi", icon: "route" },
+  { id: "carts", label: "Planshet Survey", detail: "Birlamchi survey data", icon: "layers" },
+];
+
+const SCENARIO_WIDTH = 1620;
+const SCENARIO_HEIGHT = 760;
 
 const scenarioNodes: ScenarioNode[] = [
-  { id: "fastapi", x: 95, y: 260 },
-  { id: "kafka", x: 245, y: 260 },
-  { id: "landing", x: 395, y: 260 },
-  { id: "preparation", x: 545, y: 260 },
-  { id: "gx", x: 695, y: 260 },
-  { id: "spark", x: 845, y: 260 },
-  { id: "clickhouse", x: 995, y: 260 },
-  { id: "postgres", x: 1145, y: 260 },
-  { id: "api", x: 1295, y: 260 },
+  { id: "source", x: 135, y: 305 },
+  { id: "fastapi", x: 320, y: 260 },
+  { id: "kafka", x: 480, y: 260 },
+  { id: "landing", x: 640, y: 260 },
+  { id: "preparation", x: 800, y: 260 },
+  { id: "gx", x: 960, y: 260 },
+  { id: "spark", x: 1120, y: 260 },
+  { id: "warehouse", x: 1280, y: 260 },
+  { id: "clickhouse", x: 1450, y: 260 },
+  { id: "postgres", x: 1450, y: 525 },
+  { id: "trino", x: 1270, y: 525 },
+  { id: "superset", x: 1090, y: 525 },
+  { id: "api", x: 910, y: 525 },
 ];
 
 const scenarioEdges: ScenarioEdge[] = [
+  { from: "source", to: "fastapi" },
   { from: "fastapi", to: "kafka" },
   { from: "kafka", to: "landing" },
   { from: "landing", to: "preparation" },
   { from: "preparation", to: "gx" },
   { from: "gx", to: "spark" },
-  { from: "spark", to: "clickhouse" },
-  { from: "clickhouse", to: "postgres" },
-  { from: "postgres", to: "api" },
+  { from: "spark", to: "warehouse" },
+  { from: "warehouse", to: "clickhouse" },
+  { from: "clickhouse", to: "postgres", kind: "branch" },
+  { from: "clickhouse", to: "trino" },
+  { from: "clickhouse", to: "superset", kind: "branch" },
+  { from: "clickhouse", to: "api", kind: "branch" },
 ];
 
 const processImages: Record<string, string> = {
+  source: "/process-images/source.svg",
   fastapi: "/process-images/fastapi.svg",
   nifi: "/process-images/nifi.svg",
   kafka: "/process-images/kafka.svg",
@@ -121,6 +142,7 @@ const processImages: Record<string, string> = {
   spark: "/process-images/spark.svg",
   curated: "/process-images/curated.svg",
   dbt: "/process-images/dbt.svg",
+  warehouse: "/process-images/dbt.svg",
   clickhouse: "/process-images/clickhouse.svg",
   postgres: "/process-images/postgres.svg",
   airflow: "/process-images/airflow.svg",
@@ -131,6 +153,7 @@ const processImages: Record<string, string> = {
   export: "/process-images/export.svg",
 };
 const processMap: Record<string, string[]> = {
+  source: ["4 ta source ro'yxati", "Bitta manbani tanlash", "Source ID ni run requestga berish"],
   fastapi: ["Request body validate", "DummyJSON endpoint call", "Payload normalize"],
   nifi: ["FlowFile create", "Route source", "Attach metadata"],
   kafka: ["NiFi route/source metadata", "Build Kafka event", "Publish ingestion signal", "Notify downstream services"],
@@ -138,22 +161,29 @@ const processMap: Record<string, string[]> = {
   preparation: ["PROFILED: column/type profile", "NORMALIZED: trim/null cleanup", "IMPUTATION_EDIT: null qiymatlarni toldirish", "VERSION_GATE: prepared version tanlash"],
   gx: ["Record count", "Primary key", "Schema and null threshold"],
   spark: ["Read prepared version", "Map business fields", "Create curated model", "Write curated JSON"],
-  clickhouse: ["Apply SQL model", "Create warehouse table", "Insert curated batch", "Expose analytics metrics"],
+  warehouse: ["Build staging model", "Create fact/dimension", "Calculate KPI rules", "Run SQL tests"],
+  clickhouse: ["Receive modeled batch", "Create analytical table", "Insert curated rows", "Expose query metrics"],
   postgres: ["Create audit table", "Upsert run", "Store warnings"],
   airflow: ["DAG trigger", "Quality gate", "Lineage print"],
   dbt: ["Build staging", "Build mart", "Run tests"],
-  superset: ["Register dataset", "Refresh chart", "Apply access"],
-  trino: ["Catalog route", "Plan query", "Stream result"],
-  api: ["Portal view", "BI/dashboard layer", "API response", "Query/export options"],
+  superset: ["GET /health", "Authenticate REST API", "Ensure ClickHouse database", "Ensure curated_events dataset"],
+  trino: ["POST /v1/statement", "Route ClickHouse catalog", "Execute run SQL", "Return result metrics"],
+  api: ["Portal view", "API response", "Export options"],
   portal: ["Load view model", "Render table", "Render operations"],
   export: ["Select format", "Build file", "Publish download"],
 };
 
 
 const stageDescriptions: Record<string, StageDescription> = {
+  source: {
+    does: "Operator 4 ta asosiy ma'lumot manbasidan bittasini tanlaydi va pipeline shu source ID bilan ishga tushadi.",
+    flow: "Tanlangan source endpoint, collection va entity metadata FastAPI requestga qo'shiladi.",
+    result: "Bitta aniq source aktiv bo'ladi; qolganlari tanlanmagan holatda turadi va run faqat aktiv manbadan data oladi.",
+    note: "Demo uchun Local Test API, eStat 4.0, SIAT API va Planshet Survey ko'rsatiladi.",
+  },
   fastapi: {
-    does: "Frontenddan kelgan pipeline requestni qabul qiladi, source va limitni tekshiradi, tashqi test API dan real JSON payload oladi.",
-    flow: "Request Next proxy orqali FastAPI backendga o'tadi, keyin DummyJSON endpointdan data olinadi va raw rows uchun normalize qilinadi.",
+    does: "Frontenddan kelgan pipeline requestni qabul qiladi, source va limitni tekshiradi va tanlangan manbadan real payload oladi. Default eStat manbasi 12-korxona Iyun CSV yozuvlarini JSON API sifatida qaytaradi.",
+    flow: "Request Next proxy orqali FastAPI backendga o'tadi; eStat tanlanganda CSV parser limit/skip bo'yicha yozuvlarni o'qiydi, null qiymatlarni saqlaydi va raw rows uchun normalize qiladi.",
     result: "Pipeline run_id yaratiladi, external payload preview chiqadi va keyingi Kafka/MinIO bosqichlari uchun data tayyor bo'ladi.",
   },
   nifi: {
@@ -195,11 +225,17 @@ const stageDescriptions: Record<string, StageDescription> = {
     result: "ClickHouse va dashboardlar ishlatadigan yagona curated schema paydo bo'ladi.",
     note: "PySpark transform va Curated Zone UI uchun bitta Transform / Curated Model stepiga birlashtirildi.",
   },
+  warehouse: {
+    does: "Curated datani warehouse business modeliga moslaydi: staging, fact/dimension, KPI va business rule SQL qatlamlarini tayyorlaydi.",
+    flow: "dbt staging model curated schema'ni qabul qiladi, keyin fact/dimension va KPI mart modellari build hamda test qilinadi.",
+    result: "ClickHouse yuklashi uchun tartibli, testdan o'tgan warehouse SQL modeli tayyor bo'ladi.",
+    note: "dbt project va SQL model assetlari mavjud; manual API run ichida dbt CLI alohida ishga tushmaydi.",
+  },
   clickhouse: {
-    does: "Curated datani SQL/DWH modeling qoidalari bilan analytical warehousega yuklaydi.",
-    flow: "Curated model warehouse jadvaliga moslanadi, ClickHouse curated_events table yaratiladi yoki topiladi va batch insert bajariladi.",
-    result: "KPI, dashboard va tez analytics querylar uchun ClickHouse ichida tayyor DWH jadvali paydo bo'ladi.",
-    note: "dbt modeling va ClickHouse load rahbariyat ko'rinishi uchun bitta Warehouse Modeling / ClickHouse stepiga birlashtirildi.",
+    does: "Warehouse modelidan chiqqan tayyor datani analitik ClickHouse bazasiga real batch sifatida yuklaydi.",
+    flow: "ClickHouse curated_events table yaratiladi yoki topiladi va modelga mos curated rows batch insert qilinadi.",
+    result: "Dashboard, KPI va tezkor analytical querylar uchun ClickHouse ichida real DWH jadvali paydo bo'ladi.",
+    note: "Bu step modeling qilmaydi; uning vazifasi tayyor modelni saqlash va analytical queryga berish.",
   },
   postgres: {
     does: "Pipeline run auditini ODS/metadata sifatida PostgreSQL jadvaliga yozadi.",
@@ -219,50 +255,59 @@ const stageDescriptions: Record<string, StageDescription> = {
     note: "Manual API run ichida dbt CLI ishga tushmaydi; project va model fayllari tayyor.",
   },
   superset: {
-    does: "ClickHouse dagi curated data asosida dashboard va BI hisobotlar ko'rsatish qatlamini bildiradi.",
-    flow: "Warehouse jadvali Superset dataset sifatida ulanadi, chart va dashboardlar shu datasetdan o'qiydi.",
-    result: "Rahbariyat va statistik xodimlar KPI/dashboard orqali tayyor analyticsni ko'radi.",
-    note: "Bu frontend run Superset API ni trigger qilmaydi; data ClickHouse da dashboardga tayyor bo'ladi.",
+    does: "ClickHouse DWHni BI database sifatida ulaydi, curated_events datasetini ro'yxatdan o'tkazadi va har bir run uchun real dashboard hamda table chart yaratadi.",
+    flow: "Pipeline Superset healthni tekshiradi, REST API orqali login qiladi, database/datasetni ensure qiladi, keyin run_id filterli chart va dashboard layoutini yaratadi.",
+    result: "Real database_id, dataset_id, dashboard_id, chart_id va dashboard URL qaytadi; modal shu dashboardni iframe orqali ochadi.",
+    note: "Superset Docker service 8087 portda ishlaydi. Service ishlamasa bu step WARNING beradi, REAL EXECUTED deb ko'rsatilmaydi.",
   },
   trino: {
-    does: "Turli storage va warehouse manbalar ustidan ad-hoc SQL so'rov qilish gatewayini ifodalaydi.",
-    flow: "Foydalanuvchi query yuboradi, Trino cataloglar bo'yicha plan tuzadi va result set qaytaradi.",
-    result: "Analitiklar turli manbalardan tez SQL query olish imkoniga ega bo'ladi.",
-    note: "Compose ichida Trino service hali ulanmagan; bu stage arxitektura qatlamini ko'rsatadi.",
+    does: "ClickHouse catalogi ustidan distributed SQL bajarib, aynan joriy run DWHga real yozilganini tekshiradi.",
+    flow: "Backend Trino /v1/statement endpointiga SQL yuboradi; Trino clickhouse.dwh.curated_events jadvaliga query route qiladi va result pagesni qaytaradi.",
+    result: "query_id, records, metric_sum, source_count va query stats real Trino javobidan olinadi.",
+    note: "Trino Docker service 8089 portda ishlaydi va ClickHouse catalogi statik properties fayli bilan ulangan.",
   },
   api: {
-    does: "Tayyor warehouse natijasini foydalanuvchi va tashqi tizimlarga ko'rsatish yoki uzatish qatlamini bildiradi.",
-    flow: "Portal pipeline holatini ko'rsatadi, BI/Superset dashboard uchun qatlam rejalashtirilgan, API/query/export esa tayyor datani tashqariga berish yo'llaridir.",
-    result: "Rahbariyat portalda natijani ko'radi, keyingi integratsiyada BI dashboard, API, Trino query va export imkoniyatlari bitta delivery qatlamida ishlaydi.",
-    note: "Superset, Trino, API Services, Portal va Export ko'payib ketmasligi uchun Visualization / Delivery stepiga yig'ildi.",
+    does: "Tayyor warehouse natijasini foydalanuvchi va tashqi tizimlarga real API orqali ko'rsatish yoki uzatish qatlamini bildiradi.",
+    flow: "Superset va Trino qatlamlaridan keyin portal /delivery/runs/{run_id} endpointini chaqiradi va ClickHouse rowlarini version/dw_id kontekstida ko'rsatadi.",
+    result: "Rahbariyat dashboard natijasini ko'radi, tashqi tizimlar esa run_id bo'yicha real ClickHouse JSON API yoki export orqali tayyor datani oladi.",
+    note: "Superset va Trino endi xaritada alohida step; bu yakuniy step portal, API va export natijasini birlashtiradi.",
   },
 };
 const stagePresentationTexts: Record<string, string> = {
-  fastapi: "Nima uchun kerak: barcha source data bitta nazoratli kirish nuqtasidan o\'tishi kerak. FastAPI requestni qabul qiladi, source va limitni tekshiradi, lokal test API\'dan null qiymatlari bor JSON payload oladi va pipeline uchun run_id bilan ishni boshlaydi.",
-  nifi: "Nima uchun kerak: productionda source'lar ko'p bo'ladi va ularni qo'lda ulash qiyin. NiFi routing, filtering va flow boshqaruvi uchun kerak. Demo ichida bu alohida ishga tushmagan, lekin real tizimda qaysi source qayerga borishini NiFi boshqaradi.",
-  kafka: "Nima uchun kerak: source kop bolsa routing va event signal alohida boshqarilishi kerak. NiFi data oqimini marshrutlash goyasini beradi, Kafka esa ingestion eventni uzatadi.",
-  landing: "Nima uchun kerak: bu bosqich original payload va ishlov beriladigan raw rowlarni MinIO data lake ichida birga saqlaydi. Landing qismi audit uchun asl JSONni saqlaydi, Raw qismi esa keyingi Data Preparation ishlashi uchun row formatni tayyorlaydi. Shu sababli UIda bitta MinIO Landing / Raw step sifatida ko'rsatiladi.",
-  raw: "Nima uchun kerak: original payload ko'pincha ichma-ich JSON bo'ladi, pipeline esa rowlar bilan ishlaydi. Raw Zone collectionni ajratadi va xom rowlar sifatida saqlaydi. Bu hali biznes model emas, lekin keyingi profiling va tozalash uchun qulay format.",
-  preparation: "Nima uchun kerak: xom data DWHga togridan-togri ketmasligi kerak. Bu step profiling, cleanup, null imputation, manual edit va version tanlashni bitta nazorat nuqtasiga yigadi. Quality gatega faqat tanlangan prepared version otadi.",
-  imputation: "Nima uchun kerak: DWHga null yoki sifatsiz qiymatlar nazoratsiz ketmasligi kerak. Bu step missing fieldlarni topadi, hisoblangan/default qiymat bilan to'ldiradi va kerak bo'lsa operator qo'lda tuzatadi. Shu joyda flow to'xtab, prepared version tanlangandan keyin qualityga o'tadi.",
-  gx: "Nima uchun kerak: tozalangan data ham DWHga kirishdan oldin quality gate'dan o'tishi kerak. Great Expectations record count, id, schema va null threshold kabi qoidalarni tekshiradi. Xato bo'lsa DWHga noto'g'ri data ketmasdan shu yerda to'xtaydi.",
-  airflow: "Nima uchun kerak: productionda pipeline tugmani bosib emas, jadval yoki event asosida avtomatik yurishi kerak. Airflow DAG, retry, schedule va task statusni boshqaradi. Demo manual run bilan ko'rsatilgan, Airflow esa orchestration qatlami sifatida tayyor turadi.",
-  spark: "Nima uchun kerak: prepared data hali analytics modeli emas. Transform / Curated Model stepi uni business schemaga otkazadi va qayta ishlatish uchun curated model sifatida saqlaydi. Shundan keyin DWH bir xil formatdagi datani qabul qiladi.",
-  curated: "Nima uchun kerak: transform natijasini faqat xotirada qoldirib bo'lmaydi. Curated Zone business-ready datani qayta ishlatish, replay qilish va warehousega qayta yuklash uchun saqlaydi. Bu Rawdan farqli ravishda dashboard va DWHga yaqin model.",
-  dbt: "Nima uchun kerak: warehouse ichida SQL model, fact/dimension va KPI qoidalari tartibli saqlanishi kerak. dbt shu modeling qatlamini standartlashtiradi. Demo transformni backend bajargan, dbt esa productionda SQL model va testlarni boshqaradi.",
-  clickhouse: "Nima uchun kerak: tayyor curated data SQL model va tez analytical query uchun DWHga tushishi kerak. Bu step dbt modeling goyasi va ClickHouse loadni birlashtiradi: data KPI, dashboard va aggregatsiya sorovlari uchun tayyorlanadi.",
-  postgres: "Nima uchun kerak: pipeline natijasining auditi alohida saqlanishi kerak. PostgreSQL run_id, status, records, quality_score va warninglarni yozadi. Bu DWH datasi emas, balki jarayonni kuzatish va troubleshooting uchun operational metadata.",
-  superset: "Nima uchun kerak: rahbariyat va analitiklar DWHdagi datani dashboard orqali ko'rishi kerak. Superset shu BI qatlam uchun rejalashtirilgan. Demo'da dashboardni Next.js portal ko'rsatyapti, shuning uchun Superset NOT CONNECTED deb halol ajratilgan.",
-  trino: "Nima uchun kerak: ayrim holatda bitta bazadan emas, bir nechta storage va database'dan ad-hoc SQL qilish kerak bo'ladi. Trino shu distributed query qatlamini beradi. Hozir demo ClickHouse/PostgreSQL bilan ishlayapti, Trino hali ulanmagan.",
-  api: "Nima uchun kerak: DWH natijasi faqat bazada qolmasligi kerak. Visualization / Delivery stepi portal, BI dashboard, API, query va export yollarini bitta foydalanuvchi chiqish qatlamiga yigadi. Demo hozir portal orqali korsatadi, qolganlari integration sifatida korsatiladi.",
-  portal: "Nima uchun kerak: foydalanuvchi pipeline holatini bitta oynada ko'rishi kerak. Portal run qilish, step statusi, timeline, lineage, preview va xatoliklarni ko'rsatadi. Bu demo'da rahbariyat ko'rayotgan asosiy web interfeys shu.",
-  export: "Nima uchun kerak: ayrim foydalanuvchilar data yoki hisobotni fayl ko'rinishida olishni xohlaydi. Export CSV, Excel, PDF yoki JSON chiqarish uchun kerak. Demo scope'da bu hali ulanmagan, shuning uchun NOT CONNECTED holatda ko'rsatilgan.",
+  source: "Pipeline qaysi tizimdan data olayotgani boshidan aniq bo'lishi kerak. Operator 4 ta source ichidan bittasini tanlaydi; tanlangan source ID, endpoint va collection keyingi FastAPI requestga uzatiladi.",
+  fastapi: "Barcha source data bitta nazoratli kirish nuqtasidan o\'tishi kerak. FastAPI source va limitni tekshiradi; default eStat source uchun 12-korxona Iyun CSV faylidan null qiymatlari saqlangan real JSON payload yaratadi va pipeline run_id bilan ishni boshlaydi.",
+  nifi: "Productionda source'lar ko'p bo'ladi va ularni qo'lda ulash qiyin. NiFi routing, filtering va flow boshqaruvi uchun kerak. Demo ichida bu alohida ishga tushmagan, lekin real tizimda qaysi source qayerga borishini NiFi boshqaradi.",
+  kafka: "Source kop bolsa routing va event signal alohida boshqarilishi kerak. NiFi data oqimini marshrutlash goyasini beradi, Kafka esa ingestion eventni uzatadi.",
+  landing: "Bu bosqich original payload va ishlov beriladigan raw rowlarni MinIO data lake ichida birga saqlaydi. Landing qismi audit uchun asl JSONni saqlaydi, Raw qismi esa keyingi Data Preparation ishlashi uchun row formatni tayyorlaydi. Shu sababli UIda bitta MinIO Landing / Raw step sifatida ko'rsatiladi.",
+  raw: "Original payload ko'pincha ichma-ich JSON bo'ladi, pipeline esa rowlar bilan ishlaydi. Raw Zone collectionni ajratadi va xom rowlar sifatida saqlaydi. Bu hali biznes model emas, lekin keyingi profiling va tozalash uchun qulay format.",
+  preparation: "Xom data DWHga togridan-togri ketmasligi kerak. Bu step profiling, cleanup, null imputation, manual edit va version tanlashni bitta nazorat nuqtasiga yigadi. Quality gatega faqat tanlangan prepared version otadi.",
+  imputation: "DWHga null yoki sifatsiz qiymatlar nazoratsiz ketmasligi kerak. Bu step missing fieldlarni topadi, hisoblangan/default qiymat bilan to'ldiradi va kerak bo'lsa operator qo'lda tuzatadi. Shu joyda flow to'xtab, prepared version tanlangandan keyin qualityga o'tadi.",
+  gx: "Tozalangan data ham DWHga kirishdan oldin quality gate'dan o'tishi kerak. Great Expectations record count, id, schema va null threshold kabi qoidalarni tekshiradi. Xato bo'lsa DWHga noto'g'ri data ketmasdan shu yerda to'xtaydi.",
+  airflow: "Productionda pipeline tugmani bosib emas, jadval yoki event asosida avtomatik yurishi kerak. Airflow DAG, retry, schedule va task statusni boshqaradi. Demo manual run bilan ko'rsatilgan, Airflow esa orchestration qatlami sifatida tayyor turadi.",
+  spark: "Prepared data hali analytics modeli emas. Transform / Curated Model stepi uni business schemaga otkazadi va qayta ishlatish uchun curated model sifatida saqlaydi. Shundan keyin DWH bir xil formatdagi datani qabul qiladi.",
+  curated: "Transform natijasini faqat xotirada qoldirib bo'lmaydi. Curated Zone business-ready datani qayta ishlatish, replay qilish va warehousega qayta yuklash uchun saqlaydi. Bu Rawdan farqli ravishda dashboard va DWHga yaqin model.",
+  dbt: "Warehouse ichida SQL model, fact/dimension va KPI qoidalari tartibli saqlanishi kerak. dbt shu modeling qatlamini standartlashtiradi. Demo transformni backend bajargan, dbt esa productionda SQL model va testlarni boshqaradi.",
+  warehouse: "Curated data DWHga yozilishidan oldin fact/dimension, KPI va business rule bo'yicha tartibli SQL modelga aylanishi kerak. Warehouse Modeling stepi dbt assetlari orqali aynan shu mantiqiy modelni tayyorlaydi.",
+  clickhouse: "Warehouse Modeling tayyorlagan data katta hajmdagi analytical querylar uchun fizik DWH bazasiga yuklanadi. ClickHouse stepi real table yaratish, batch insert va tez aggregatsiya so'rovlarini ta'minlaydi.",
+  postgres: "Pipeline natijasining auditi alohida saqlanishi kerak. PostgreSQL run_id, status, records, quality_score va warninglarni yozadi. Bu DWH datasi emas, balki jarayonni kuzatish va troubleshooting uchun operational metadata.",
+  superset: "Rahbariyat va analitiklar DWHdagi datani dashboard orqali ko'rishi kerak. Pipeline Superset REST API orqali ClickHouse connection va curated_events datasetini real yaratadi yoki mavjudini topadi. O'ng panelda database_id, dataset_id va Explore URL chiqadi.",
+  trino: "Ayrim holatda bir nechta storage va database ustidan ad-hoc SQL qilish kerak bo'ladi. Trino ClickHouse catalogiga real ulangan va joriy run uchun count hamda metric_sum querysini bajaradi. Natijadagi query_id va rows o'ng panelda ko'rinadi.",
+  api: "DWH natijasi faqat bazada qolmasligi kerak. Visualization / Delivery stepi yakuniy portal, API response va export natijasini ko'rsatadi. Superset BI va Trino query qatlamlari xaritada undan oldin alohida ko'rsatiladi.",
+  portal: "Foydalanuvchi pipeline holatini bitta oynada ko'rishi kerak. Portal run qilish, step statusi, timeline, lineage, preview va xatoliklarni ko'rsatadi. Bu demo'da rahbariyat ko'rayotgan asosiy web interfeys shu.",
+  export: "Ayrim foydalanuvchilar data yoki hisobotni fayl ko'rinishida olishni xohlaydi. Export CSV, Excel, PDF yoki JSON chiqarish uchun kerak. Demo scope'da bu hali ulanmagan, shuning uchun NOT CONNECTED holatda ko'rsatilgan.",
 };
 const staticStageDetails: Record<string, StaticStageDetail> = {
+  source: {
+    input_ref: "Operator source selection",
+    output_ref: "PipelineRunRequest.source",
+    input_preview: { available_sources: ["products", "local_null_products", "users", "carts"] },
+    output_preview: { selected_source: "UI da tanlangan source ID" },
+    artifacts: { endpoint: "GET /sources", selection: "frontend scenario source step" },
+  },
   fastapi: {
     input_ref: "POST http://localhost:8000/pipeline/run",
     output_ref: "backend/app/pipeline.py -> extract()",
-    input_preview: { body: { source: "products/users/carts/posts/todos/quotes", limit: "1..100", mode: "batch/stream/api" } },
+    input_preview: { body: { source: "products", limit: "1..100", mode: "api" } },
     artifacts: { api_route: "backend/app/main.py", schema: "backend/app/schemas.py" },
   },
   nifi: {
@@ -283,7 +328,14 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
   gx: { artifacts: { validator: "backend/app/quality.py", checks: ["record_count", "primary_key", "schema_not_empty", "null_threshold"] } },
   spark: { artifacts: { pyspark_job: "spark/jobs/dummyjson_curate.py", runtime_transform: "backend/app/transform.py" } },
   curated: { artifacts: { storage: "MinIO raw-zone/curated", format: "json/parquet-compatible schema" } },
-  clickhouse: { artifacts: { database: "dwh", table: "curated_events", code: "backend/app/databases.py", includes: ["dbt modeling", "ClickHouse load"] } },
+  warehouse: {
+    input_ref: "dbt/dwh_project/models/staging",
+    output_ref: "dbt/dwh_project/models/marts",
+    input_preview: { source_relation: "curated_events", transform: "staging -> fact/dimension -> KPI" },
+    output_preview: { note: "Warehouse SQL model asseti tayyor; manual API run ichida dbt CLI bajarilmagan." },
+    artifacts: { project: "dbt/dwh_project", includes: ["staging", "fact/dimension", "KPI", "tests"] },
+  },
+  clickhouse: { artifacts: { database: "dwh", table: "curated_events", code: "backend/app/databases.py", includes: ["table create", "batch insert", "analytics query"] } },
   dbt: {
     input_ref: "dbt/dwh_project/models/staging",
     output_ref: "dbt/dwh_project/models/marts",
@@ -292,35 +344,39 @@ const staticStageDetails: Record<string, StaticStageDetail> = {
     artifacts: { project: "dbt/dwh_project", models: "dbt/dwh_project/models" },
   },
   superset: {
-    input_ref: "ClickHouse curated_events",
-    output_ref: "BI dashboard dataset",
-    output_preview: { note: "Superset bu frontend tugmasida trigger qilinmaydi; ClickHouse data dashboard uchun tayyorlanadi." },
-    artifacts: { service: "Apache Superset", expected_dataset: "curated_events" },
+    input_ref: "ClickHouse dwh.curated_events",
+    output_ref: "http://localhost:8087/explore/",
+    output_preview: { result: "database_id, dataset_id va Explore URL pipeline runtime'da qaytadi" },
+    artifacts: { service: "Apache Superset", endpoint: "http://localhost:8087", driver: "clickhouse-connect", code: "backend/app/analytics.py" },
   },
   trino: {
-    input_ref: "Object storage / warehouse catalogs",
-    output_ref: "distributed SQL result set",
-    output_preview: { note: "Trino query engine sifatida ko'rsatilgan; compose ichida alohida Trino service hali ulanmagan." },
-    artifacts: { role: "ad-hoc SQL gateway" },
+    input_ref: "ClickHouse dwh.curated_events",
+    output_ref: "http://localhost:8089/v1/statement",
+    output_preview: { result: "query_id, rows va stats pipeline runtime'da qaytadi" },
+    artifacts: { service: "Trino", catalog: "clickhouse", schema: "dwh", code: "backend/app/analytics.py" },
   },
   api: {
-    input_ref: "ClickHouse curated_events / Portal state",
+    input_ref: "Superset dashboard / Trino result / Portal state",
     output_ref: "Visualization and delivery layer",
-    input_preview: { includes: ["Portal", "Superset", "Trino", "API Services", "Export"] },
-    output_preview: { note: "Portal real ishlaydi; Superset/Trino/Export keyingi integration sifatida ko'rsatilgan." },
-    artifacts: { frontend: "Next.js", route: "frontend/app/api/backend", delivery: ["BI", "API", "Query", "Export"] },
+    input_preview: { includes: ["Portal", "API Services", "Export"] },
+    output_preview: { note: "Portal va JSON API real ishlaydi; file export keyingi integration sifatida ko'rsatilgan." },
+    artifacts: { frontend: "Next.js", route: "frontend/app/api/backend", delivery: ["Portal", "API", "Export"] },
   },
 };
 
 const PLAYBACK_STEP_MS = 3000;
 const PLAYBACK_ORDER = [
+  "source",
   "fastapi",
   "kafka",
   "landing",
   "preparation",
   "gx",
   "spark",
+  "warehouse",
   "clickhouse",
+  "trino",
+  "superset",
   "postgres",
   "api",
 ];
@@ -328,8 +384,8 @@ const PLAYBACK_ORDER = [
 export function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [sources, setSources] = useState<SourcesResponse>({});
-  const [source, setSource] = useState("local_null_products");
-  const [mode, setMode] = useState<Mode>("api");
+  const [source, setSource] = useState("products");
+  const mode: Mode = "api";
   const [limit, setLimit] = useState(20);
   const [failureStage, setFailureStage] = useState<FailureStage>("none");
   const [view, setView] = useState<View>("curated");
@@ -346,9 +402,11 @@ export function Dashboard() {
   const [awaitingVersionSelection, setAwaitingVersionSelection] = useState(false);
   const [manualStopped, setManualStopped] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [resultModalStageId, setResultModalStageId] = useState<ResultModalStageId | null>(null);
   const playbackTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const playbackStagesRef = useRef<StageMeta[]>([]);
   const playbackIndexRef = useRef(0);
+  const resultModalAutoResumeRef = useRef(false);
 
   useEffect(() => {
     setFrontendHost(window.location.host);
@@ -359,6 +417,35 @@ export function Dashboard() {
   const stageResults = useMemo(() => {
     const map = new Map<string, StageResult>();
     result?.stages.forEach((stage) => map.set(stage.id, stage));
+    const fastapiStage = map.get("fastapi");
+    const selectedSource = sources[source];
+    if (result && fastapiStage) {
+      map.set("source", {
+        id: "source",
+        name: selectedSource?.title ?? source,
+        status: "done",
+        sequence: 0,
+        started_at: result.started_at,
+        ended_at: fastapiStage.started_at,
+        duration_ms: 0,
+        data_size_bytes: 0,
+        data_format: "Source selection",
+        message: (selectedSource?.title ?? source) + " tanlandi; collection=" + (selectedSource?.collection ?? "unknown"),
+        warnings: [],
+        input_ref: "GET /sources",
+        output_ref: selectedSource?.endpoint ?? source,
+        input_preview: PRIMARY_SOURCE_OPTIONS.map((item) => ({ id: item.id, title: sources[item.id]?.title ?? item.label })),
+        output_preview: {
+          selected_source: source,
+          title: selectedSource?.title ?? source,
+          endpoint: selectedSource?.endpoint,
+          collection: selectedSource?.collection,
+          entity: selectedSource?.entity,
+        },
+        metrics: { available_sources: PRIMARY_SOURCE_OPTIONS.length, selected: 1 },
+        artifacts: { source_id: source, endpoint: selectedSource?.endpoint, collection: selectedSource?.collection },
+      });
+    }
     const landing = map.get("landing");
     const raw = map.get("raw");
     if (landing && raw) {
@@ -442,7 +529,7 @@ export function Dashboard() {
       });
     }
     return map;
-  }, [result]);
+  }, [result, source, sources]);
 
   const rows = view === "raw"
     ? result?.raw_preview || []
@@ -452,6 +539,7 @@ export function Dashboard() {
   const columns = getColumns(rows, view);
   const qualityChecks = result?.quality_checks || [];
   const activeStageResult = activeStage ? stageResults.get(activeStage.id) : undefined;
+  const selectedDeliveryDwId: string | null = null;
   const playbackTotal = result ? getPlaybackStages(result).length : 0;
   const playbackPosition = playbackStageId ? visitedStageIds.indexOf(playbackStageId) + 1 : visitedStageIds.length;
 
@@ -480,6 +568,8 @@ export function Dashboard() {
     setAwaitingVersionSelection(false);
     setManualStopped(false);
     setSelectedVersionId(null);
+    setResultModalStageId(null);
+    resultModalAutoResumeRef.current = false;
     setActiveStage(null);
     setResult(null);
     setLogs([]);
@@ -529,6 +619,30 @@ export function Dashboard() {
     void runPipeline("none");
   }
 
+  function savePreparedVersion(
+    updatedRows: Record<string, unknown>[],
+    versionId: string,
+  ) {
+    setResult((current) => {
+      if (!current) return current;
+      const preparedPreview = updatedRows.map((row, index) => ({
+        ...withoutInternalVersionFields(row),
+        id: row.id ?? current.prepared_preview[index]?.id ?? ("row-" + (index + 1)),
+        __prepared_version_id: versionId,
+      }));
+      const preparedById = new Map(
+        preparedPreview.map((row) => [String(row.id), withoutInternalVersionFields(row)]),
+      );
+      const lineage = current.lineage.map((item) => ({
+        ...item,
+        prepared: preparedById.get(String(item.record_id)) ?? item.prepared,
+      }));
+      return { ...current, prepared_preview: preparedPreview, lineage };
+    });
+    setSelectedVersionId(versionId);
+    addLog("MANUAL_FILE_VERSION_SAVED: rows=" + updatedRows.length + "; version=" + versionId);
+  }
+
   function clearPlaybackTimers() {
     playbackTimers.current.forEach((timer) => clearTimeout(timer));
     playbackTimers.current = [];
@@ -545,6 +659,8 @@ export function Dashboard() {
     setAwaitingVersionSelection(false);
     setManualStopped(false);
     setSelectedVersionId(null);
+    setResultModalStageId(null);
+    resultModalAutoResumeRef.current = false;
     setActiveStage(null);
 
     if (!playableStages.length) {
@@ -574,7 +690,17 @@ export function Dashboard() {
       if (stage.id === "preparation") {
         setPlaybackRunning(false);
         setAwaitingVersionSelection(true);
-        addLog("WAITING_VERSION_SELECTION: Data Preparation / Imputation stepda to'xtadi. Version tanlang va davom ettiring.");
+        resultModalAutoResumeRef.current = false;
+        setResultModalStageId("preparation");
+        addLog("WAITING_VERSION_SELECTION: Data Preparation / Imputation result modali ochildi. Version tanlang va davom ettiring.");
+        return;
+      }
+
+      if (stage.id === "trino" || stage.id === "superset" || stage.id === "api") {
+        setPlaybackRunning(false);
+        resultModalAutoResumeRef.current = true;
+        setResultModalStageId(stage.id);
+        addLog(`RESULT_MODAL_OPEN: ${stage.id} real natijasi ko'rsatilmoqda.`);
         return;
       }
 
@@ -598,6 +724,8 @@ export function Dashboard() {
       return;
     }
     setAwaitingVersionSelection(false);
+    setResultModalStageId(null);
+    resultModalAutoResumeRef.current = false;
     setPlaybackRunning(true);
     addLog(`VERSION_SELECTED: ${selectedVersionId}; flow Great Expectations stepga davom etadi.`);
     schedulePlaybackStep(playbackIndexRef.current + 1, 0);
@@ -618,9 +746,47 @@ export function Dashboard() {
     addLog("CONTINUE_FROM_STOP: keyingi stepga davom etdi.");
     schedulePlaybackStep(playbackIndexRef.current + 1, 0);
   }
+  function closeResultModal() {
+    const shouldResume = resultModalAutoResumeRef.current;
+    resultModalAutoResumeRef.current = false;
+    setResultModalStageId(null);
+    if (!shouldResume) return;
+
+    const nextIndex = playbackIndexRef.current + 1;
+    if (nextIndex >= playbackStagesRef.current.length) {
+      setPlaybackRunning(false);
+      setPlaybackStageId(null);
+      return;
+    }
+    setPlaybackRunning(true);
+    schedulePlaybackStep(nextIndex, 0);
+  }
+  function selectPipelineSource(nextSource: string) {
+    if (running || playbackRunning || awaitingVersionSelection) return;
+    clearPlaybackTimers();
+    setSource(nextSource);
+    setCorrections([]);
+    setResult(null);
+    setPlaybackRunning(false);
+    setPlaybackStageId(null);
+    setVisitedStageIds([]);
+    setManualStopped(false);
+    setSelectedVersionId(null);
+    setResultModalStageId(null);
+    resultModalAutoResumeRef.current = false;
+    setActiveStage(stageCatalog.find((stage) => stage.id === "source") ?? stageCatalog[0]);
+    addLog("SOURCE_SELECTED: " + nextSource);
+  }
+
   function handleStageSelect(stage: StageMeta) {
     setActiveStage(stage);
-    if (stage.id === "fastapi" || stage.id === "api") {
+    if (stage.id === "preparation" || stage.id === "trino" || stage.id === "superset" || stage.id === "api") {
+      resultModalAutoResumeRef.current = false;
+      setResultModalStageId(stage.id);
+      addLog(`RESULT_MODAL_OPEN_MANUAL: ${stage.id}`);
+      return;
+    }
+    if (stage.id === "fastapi") {
       const selectedSource = sources[source];
       const isLocalTest = source === "local_null_products" || selectedSource?.local_test;
       const endpoint = selectedSource?.endpoint ?? (isLocalTest ? "/test-api/products-null" : "/products");
@@ -660,14 +826,13 @@ export function Dashboard() {
             <span>Source</span>
             <select
               value={source}
-              onChange={(event) => {
-                setSource(event.target.value);
-                setCorrections([]);
-              }}
-              disabled={running}
+              onChange={(event) => selectPipelineSource(event.target.value)}
+              disabled={running || playbackRunning || awaitingVersionSelection}
             >
-              {Object.entries(sources).map(([key, item]) => (
-                <option key={key} value={key}>{item.title} / {item.collection}</option>
+              {PRIMARY_SOURCE_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {sources[option.id]?.title ?? option.label} / {sources[option.id]?.collection ?? option.detail}
+                </option>
               ))}
             </select>
           </label>
@@ -684,14 +849,6 @@ export function Dashboard() {
               <option value="clickhouse">ClickHouse error (TEST)</option>
             </select>
           </label>
-          <div className="segmented" aria-label="Pipeline mode">
-            {(["batch", "stream", "api"] as Mode[]).map((item) => (
-              <button key={item} className={mode === item ? "active" : ""} onClick={() => setMode(item)} disabled={running}>
-                <Icon name={item === "batch" ? "clock" : item === "stream" ? "stream" : "api"} />
-                <span>{item}</span>
-              </button>
-            ))}
-          </div>
           <button className="runButton" onClick={() => void runPipeline()} disabled={running || !Object.keys(sources).length}>
             <Icon name={running ? "refresh" : "play"} />
             <span>{running ? "API ishlayapti" : "Run scenario"}</span>
@@ -735,6 +892,10 @@ export function Dashboard() {
             apiRunning={running}
             totalRecords={result?.records ?? 0}
             runStatus={result?.status}
+            sources={sources}
+            selectedSourceId={source}
+            sourceSelectionDisabled={running || playbackRunning || awaitingVersionSelection}
+            onSourceChange={selectPipelineSource}
             onSelect={handleStageSelect}
           />
           <ScenarioStepNotes
@@ -743,14 +904,7 @@ export function Dashboard() {
             playbackStageId={playbackStageId}
             onSelect={handleStageSelect}
           />
-          <PrepareImputationDeepBlock
-            result={result}
-            stageResults={stageResults}
-            selectedVersionId={selectedVersionId}
-            awaitingVersionSelection={awaitingVersionSelection}
-            onSelectVersion={setSelectedVersionId}
-            onContinue={continueAfterVersionSelection}
-          />
+
         </article>
 
         <aside className="runSidebar">
@@ -878,6 +1032,23 @@ export function Dashboard() {
         </article>
       </section>
 
+      {resultModalStageId ? (
+        <ResultModal
+          stageId={resultModalStageId}
+          stageResult={stageResults.get(resultModalStageId)}
+          pipelineResult={result}
+          stageResults={stageResults}
+          selectedVersionId={selectedVersionId}
+          selectedDeliveryDwId={selectedDeliveryDwId}
+          frontendHost={frontendHost}
+          awaitingVersionSelection={awaitingVersionSelection}
+          autoResume={resultModalAutoResumeRef.current}
+          onClose={closeResultModal}
+          onSelectVersion={setSelectedVersionId}
+          onSavePreparedVersion={savePreparedVersion}
+          onContinueVersion={continueAfterVersionSelection}
+        />
+      ) : null}
       {result?.lineage.length ? <LineageExplorer records={result.lineage} /> : null}
 
     </main>
@@ -898,12 +1069,361 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+type DeliveryWarehouseResponse = {
+  source: string;
+  database: string;
+  table: string;
+  run_id: string;
+  selected_version_id?: string | null;
+  dw_id_filter?: string | null;
+  records_total: number;
+  metric_sum: number;
+  limit: number;
+  columns: string[];
+  rows: Record<string, unknown>[];
+};
+
+function ResultModal({
+  stageId,
+  stageResult,
+  pipelineResult,
+  stageResults,
+  selectedVersionId,
+  selectedDeliveryDwId,
+  frontendHost,
+  awaitingVersionSelection,
+  autoResume,
+  onClose,
+  onSelectVersion,
+  onSavePreparedVersion,
+  onContinueVersion,
+}: {
+  stageId: ResultModalStageId;
+  stageResult?: StageResult;
+  pipelineResult: PipelineResult | null;
+  stageResults: Map<string, StageResult>;
+  selectedVersionId: string | null;
+  selectedDeliveryDwId: string | null;
+  frontendHost: string;
+  awaitingVersionSelection: boolean;
+  autoResume: boolean;
+  onClose: () => void;
+  onSelectVersion: (versionId: string) => void;
+  onSavePreparedVersion: (
+    rows: Record<string, unknown>[],
+    versionId: string,
+  ) => void;
+  onContinueVersion: () => void;
+}) {
+  const stage = stageCatalog.find((item) => item.id === stageId) ?? stageCatalog[0];
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && stageId !== "preparation") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose, stageId]);
+
+  return (
+    <div className="resultModalBackdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && stageId !== "preparation") onClose();
+    }}>
+      <section className="resultModalWindow" role="dialog" aria-modal="true" aria-labelledby="result-modal-title">
+        <header className="resultModalHeader">
+          <span className="resultModalIcon" style={{ background: stage.color }}><Icon name={stage.icon} /></span>
+          <div>
+            <p>{stage.layer} result</p>
+            <h2 id="result-modal-title">{stage.label}</h2>
+            <span>{stageResult?.message ?? "Scenario resulti kutilmoqda"}</span>
+          </div>
+          <div className="resultModalHeaderState">
+            <strong className={stageResult?.status ?? "waiting"}>{stageResult ? stageResult.status.toUpperCase() : "WAITING"}</strong>
+            <button type="button" className="iconButton" onClick={onClose} aria-label="Result oynasini yopish" title="Yopish"><Icon name="close" /></button>
+          </div>
+        </header>
+
+        <div className="resultModalBody">
+          {stageId === "preparation" ? (
+            <PrepareImputationDeepBlock
+              result={pipelineResult}
+              stageResults={stageResults}
+              selectedVersionId={selectedVersionId}
+              awaitingVersionSelection={awaitingVersionSelection}
+              onSelectVersion={onSelectVersion}
+              onSaveVersion={onSavePreparedVersion}
+              onContinue={onContinueVersion}
+            />
+          ) : stageId === "trino" ? (
+            <TrinoResultContent result={stageResult} />
+          ) : stageId === "superset" ? (
+            <SupersetResultContent
+              result={stageResult}
+              trinoResult={stageResults.get("trino")}
+              frontendHost={frontendHost}
+            />
+          ) : (
+            <DeliveryResultContent
+              pipelineResult={pipelineResult}
+              selectedVersionId={selectedVersionId}
+              selectedDeliveryDwId={selectedDeliveryDwId}
+            />
+          )}
+        </div>
+
+        {stageId !== "preparation" ? (
+          <footer className="resultModalFooter">
+            <span>{autoResume ? "Oyna yopilganda scenario keyingi stepga davom etadi." : "Bu natija real bajarilgan stage response'idan olindi."}</span>
+            <button type="button" onClick={onClose}>
+              <Icon name={autoResume ? "play" : "close"} /> {autoResume ? "Yopish va davom etish" : "Yopish"}
+            </button>
+          </footer>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function TrinoResultContent({ result, compact = false }: { result?: StageResult; compact?: boolean }) {
+  const output = asRecord(result?.output_preview);
+  const rows = asRecordArray(output?.rows);
+  const columns = asStringArray(output?.columns);
+  const stats = asRecord(output?.stats);
+  const query = typeof output?.query === "string" ? output.query : "Trino query hali bajarilmagan.";
+
+  return (
+    <section className={["analyticsResult", compact ? "compact" : ""].filter(Boolean).join(" ")}>
+      <div className="analyticsResultKpis">
+        <ReportValue label="Query ID" value={String(output?.query_id ?? "-")} />
+        <ReportValue label="Catalog / schema" value={`${String(output?.catalog ?? "-")} / ${String(output?.schema ?? "-")}`} />
+        <ReportValue label="Rows" value={String(result?.metrics?.records_queried ?? rows.length)} />
+        <ReportValue label="Runtime" value={formatDuration(result?.duration_ms ?? 0)} />
+      </div>
+      <div className="sqlResultBlock">
+        <div><Icon name="search" /><strong>Bajarilgan real Trino SQL</strong></div>
+        <pre>{query}</pre>
+      </div>
+      <ResultRowsTable rows={rows} columns={columns} emptyText={result?.warnings?.[0] ?? "Trino result hali yo'q"} />
+      {stats ? <div className="analyticsStatsLine">{Object.entries(stats).slice(0, 8).map(([key, value]) => <span key={key}><b>{key}</b>{formatCell(value)}</span>)}</div> : null}
+    </section>
+  );
+}
+
+function SupersetResultContent({
+  result,
+  trinoResult,
+  frontendHost,
+}: {
+  result?: StageResult;
+  trinoResult?: StageResult;
+  frontendHost: string;
+}) {
+  const output = asRecord(result?.output_preview);
+  const dashboardUrl = browserServiceUrl(
+    String(output?.dashboard_url ?? result?.output_ref ?? ""),
+    frontendHost,
+  );
+  const chartUrl = browserServiceUrl(String(output?.chart_url ?? output?.explore_url ?? ""), frontendHost);
+
+  return (
+    <section className="supersetResultLayout">
+      <div className="analyticsResultKpis">
+        <ReportValue label="Dashboard ID" value={String(output?.dashboard_id ?? "-")} />
+        <ReportValue label="Chart ID" value={String(output?.chart_id ?? "-")} />
+        <ReportValue label="Dataset ID" value={String(output?.dataset_id ?? "-")} />
+        <ReportValue label="Database ID" value={String(output?.database_id ?? "-")} />
+      </div>
+      <div className="supersetToolbar">
+        <div>
+          <Icon name="chart" />
+          <span><strong>Real Apache Superset dashboard</strong><small>{String(output?.dashboard_title ?? "DWH dashboard")}</small></span>
+        </div>
+        <div>
+          {chartUrl ? <a href={chartUrl} target="_blank" rel="noreferrer">Chart / Explore</a> : null}
+          {dashboardUrl ? <a href={dashboardUrl} target="_blank" rel="noreferrer">Dashboardni ochish</a> : null}
+        </div>
+      </div>
+      {dashboardUrl && result?.status === "done" ? (
+        <iframe
+          className="supersetDashboardFrame"
+          src={dashboardUrl}
+          title="Apache Superset real dashboard"
+          allow="fullscreen"
+        />
+      ) : (
+        <div className="analyticsEmpty"><Icon name="alert" /><span><strong>Superset dashboard ochilmadi</strong>{result?.warnings?.[0] ?? "Pipeline Superset stage natijasini kutmoqda."}</span></div>
+      )}
+      <div className="linkedTrinoResult">
+        <div className="linkedResultHead"><Icon name="search" /><span><strong>Shu run uchun Trino SQL result</strong><small>ClickHouse yozuvi distributed SQL orqali qayta tekshirildi</small></span></div>
+        <TrinoResultContent result={trinoResult} compact />
+      </div>
+    </section>
+  );
+}
+
+function DeliveryResultContent({
+  pipelineResult,
+  selectedVersionId,
+  selectedDeliveryDwId,
+}: {
+  pipelineResult: PipelineResult | null;
+  selectedVersionId: string | null;
+  selectedDeliveryDwId: string | null;
+}) {
+  const [delivery, setDelivery] = useState<DeliveryWarehouseResponse | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const runId = pipelineResult?.run_id;
+  const query = new URLSearchParams({ limit: "100" });
+  if (selectedVersionId) query.set("version_id", selectedVersionId);
+  if (selectedDeliveryDwId) query.set("dw_id", selectedDeliveryDwId);
+  const apiUrl = runId ? `/api/backend/delivery/runs/${encodeURIComponent(runId)}?${query.toString()}` : "";
+
+  useEffect(() => {
+    if (!apiUrl) return;
+    let active = true;
+    setLoading(true);
+    setDeliveryError(null);
+    void fetchJson<DeliveryWarehouseResponse>(apiUrl)
+      .then((data) => { if (active) setDelivery(data); })
+      .catch((error) => { if (active) setDeliveryError(formatError(error)); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [apiUrl]);
+
+  return (
+    <section className="deliveryApiResult">
+      <div className="deliveryApiIntro">
+        <div><Icon name="api" /><span><strong>Warehouse Delivery API</strong><small>ClickHouse curated_events jadvalidan real SELECT</small></span></div>
+        {apiUrl ? <a href={apiUrl} target="_blank" rel="noreferrer">JSON API'ni ochish</a> : null}
+      </div>
+      <code className="deliveryApiUrl">GET {apiUrl || "/api/backend/delivery/runs/{run_id}"}</code>
+      <div className="analyticsResultKpis">
+        <ReportValue label="Run ID" value={runId?.slice(0, 12) ?? "-"} />
+        <ReportValue label="Version" value={selectedVersionId ?? "run snapshot"} />
+        <ReportValue label="Records" value={String(delivery?.records_total ?? pipelineResult?.records ?? 0)} />
+        <ReportValue label="Metric sum" value={formatNumber(delivery?.metric_sum ?? 0)} />
+      </div>
+      {loading ? <div className="analyticsEmpty"><Icon name="refresh" /><span><strong>ClickHouse o'qilmoqda</strong>Warehouse API response kutilmoqda.</span></div> : null}
+      {deliveryError ? <div className="analyticsEmpty error"><Icon name="alert" /><span><strong>Delivery API xatosi</strong>{deliveryError}</span></div> : null}
+      {delivery ? <ResultRowsTable rows={delivery.rows} columns={delivery.columns} emptyText="Bu run/version uchun DWH row topilmadi" /> : null}
+    </section>
+  );
+}
+
+function ResultRowsTable({ rows, columns, emptyText }: { rows: Record<string, unknown>[]; columns?: string[]; emptyText: string }) {
+  const visibleColumns = (columns?.length ? columns : Object.keys(rows[0] ?? {})).slice(0, 11);
+  if (!rows.length) return <div className="analyticsEmpty"><Icon name="database" /><span><strong>Result bo'sh</strong>{emptyText}</span></div>;
+  return (
+    <div className="resultModalTableWrap">
+      <table>
+        <thead><tr>{visibleColumns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+        <tbody>{rows.map((row, index) => <tr key={String(row.dw_id ?? row.id ?? index)}>{visibleColumns.map((column) => <td key={column}>{formatCell(row[column])}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function browserServiceUrl(value: string, frontendHost: string): string {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && frontendHost && frontendHost !== "loading") {
+      url.hostname = frontendHost.split(":")[0];
+    }
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("uz-UZ", { maximumFractionDigits: 2 }).format(value);
+}
+type DatasetVersion = {
+  fileId: string;
+  fileName: string;
+  base: string;
+  raw: string;
+  prepared: string;
+  integration: string;
+  metrics: string;
+};
+
+type EditableDatasetVersion = {
+  sourceLabel: string;
+  sourceVersionId: string;
+  rows: Record<string, unknown>[];
+};
+
+function withoutInternalVersionFields(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !key.startsWith("__")));
+}
+
+function datasetFileName(result: PipelineResult): string {
+  if (result.source === "products") return "12-korxona shakli_Iyun_1700_\u0432\u0441\u0435.csv";
+  if (result.source === "local_null_products") return "local-null-products.json";
+  if (result.source === "users") return "siat-users.json";
+  if (result.source === "carts") return "planshet-survey.json";
+  return result.source + "-dataset.json";
+}
+
+function buildDatasetVersion(result: PipelineResult): DatasetVersion {
+  const fileName = datasetFileName(result);
+  const base = result.source.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24) || "dataset";
+  const explicitPreparedVersion = result.prepared_preview.find(
+    (row) => typeof row.__prepared_version_id === "string",
+  )?.__prepared_version_id;
+  return {
+    fileId: "FILE-" + result.run_id.slice(0, 8).toUpperCase(),
+    fileName,
+    base,
+    raw: "raw:" + base + ":v0",
+    prepared: typeof explicitPreparedVersion === "string"
+      ? explicitPreparedVersion
+      : "prep:" + base + ":v1",
+    integration: "integration:" + base + ":v2",
+    metrics: "metrics:" + base + ":v3",
+  };
+}
+
+function downloadVersionJson(versionId: string, payload: unknown) {
+  const safeName = versionId.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = safeName + ".json";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 function PrepareImputationDeepBlock({
   result,
   stageResults,
   selectedVersionId,
   awaitingVersionSelection,
   onSelectVersion,
+  onSaveVersion,
   onContinue,
 }: {
   result: PipelineResult | null;
@@ -911,38 +1431,101 @@ function PrepareImputationDeepBlock({
   selectedVersionId: string | null;
   awaitingVersionSelection: boolean;
   onSelectVersion: (versionId: string) => void;
+  onSaveVersion: (
+    rows: Record<string, unknown>[],
+    versionId: string,
+  ) => void;
   onContinue: () => void;
 }) {
   const preparation = stageResults.get("preparation");
   const imputation = stageResults.get("imputation") ?? preparation;
   const metrics = imputation?.metrics ?? {};
   const preparedRows = result?.prepared_preview ?? [];
-  const versionRows = preparedRows.slice(0, 8).map((row, index) => {
-    const recordId = String(row.id ?? row.dw_id ?? `row-${index + 1}`);
-    const base = recordId.replace(/[^a-zA-Z0-9_-]/g, "").slice(-8) || String(index + 1).padStart(2, "0");
-    return {
-      recordId,
-      raw: `raw:${base}:v0`,
-      prepared: `prep:${base}:v1`,
-      quality: `qa:${base}:v2`,
-      dwh: `dwh:${base}:v3`,
-    };
-  });
+  const datasetVersion = result ? buildDatasetVersion(result) : null;
+  const [editingVersion, setEditingVersion] = useState<EditableDatasetVersion | null>(null);
+  const [draftJson, setDraftJson] = useState("");
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [savedVersionId, setSavedVersionId] = useState<string | null>(null);
 
   const flow = [
-    ["01", "Raw draft", "Raw Zone dan kelgan asl record o'zgartirilmaydi. Har bir record uchun raw:v0 version saqlanadi."],
-    ["02", "Prepare stage", "Profiling, type aniqlash, trim/null normalize va prepared draft ochiladi."],
-    ["03", "Imputatsiya / Edit", "Bo'sh qiymatlar default yoki hisoblangan qiymat bilan to'ldiriladi. Operator kerak bo'lsa tabledan recordni tanlab qo'lda edit qiladi."],
-    ["04", "Version tanlash", "Tabledagi prepared version ID tanlanadi. Tanlanmaguncha flow shu joyda to'xtab turadi."],
-    ["05", "Quality va DWH", "Tanlangan version Great Expectations validationga, keyin Curated Zone va ClickHouse DWH ga ketadi."],
+    ["01", "Birlamchi ma'lumot", "Manbadan kelgan butun fayl Raw Zone da o'zgartirilmagan v0 nusxa sifatida saqlanadi."],
+    ["02", "Qayta ishlangan", "Fayldagi barcha recordlar profiling, type aniqlash, trim va null normalize jarayonidan o'tadi."],
+    ["03", "Imputatsiya / Edit", "Bo'sh qiymatlar to'ldiriladi. Edit butun fayl uchun yangi manual Prepared version yaratadi."],
+    ["04", "Integratsiya", "Tanlangan fayl versiyasi quality check va integratsiya qoidalaridan o'tadi."],
+    ["05", "Ko'rsatkichlar", "Tasdiqlangan fayldan Curated model, KPI va ClickHouse ko'rsatkichlari hosil qilinadi."],
   ];
+
+  function beginEdit(
+    sourceLabel: string,
+    sourceVersionId: string,
+    rows: Record<string, unknown>[],
+  ) {
+    const cleanRows = rows.map(withoutInternalVersionFields);
+    setEditingVersion({ sourceLabel, sourceVersionId, rows: cleanRows });
+    setDraftJson(JSON.stringify(cleanRows, null, 2));
+    setEditorError(null);
+  }
+
+  function saveEdit() {
+    if (!editingVersion || !datasetVersion) return;
+    try {
+      const parsed = JSON.parse(draftJson);
+      if (!Array.isArray(parsed) || !parsed.length) {
+        throw new Error("Fayl JSON array ko'rinishida va kamida bitta recorddan iborat bo'lishi kerak.");
+      }
+      const rows = parsed.map((row, index) => {
+        if (!row || typeof row !== "object" || Array.isArray(row)) {
+          throw new Error((index + 1) + "-record JSON object bo'lishi kerak.");
+        }
+        return withoutInternalVersionFields(row as Record<string, unknown>);
+      });
+      const revision = Date.now().toString(36).slice(-6);
+      const nextVersionId = "prep:" + datasetVersion.base + ":manual-" + revision;
+      onSaveVersion(rows, nextVersionId);
+      onSelectVersion(nextVersionId);
+      setSavedVersionId(nextVersionId);
+      setEditingVersion(null);
+      setEditorError(null);
+    } catch (error) {
+      setEditorError(formatError(error));
+    }
+  }
+
+  function versionPayload(
+    label: string,
+    versionId: string,
+    data: unknown,
+  ) {
+    return {
+      run_id: result?.run_id ?? null,
+      record_id: datasetVersion?.fileId ?? null,
+      file_name: datasetVersion?.fileName ?? null,
+      record_count: preparedRows.length,
+      stage: label,
+      version_id: versionId,
+      exported_at: new Date().toISOString(),
+      data,
+    };
+  }
+
+  const integrationPayload = {
+    rows: preparedRows.map(withoutInternalVersionFields),
+    quality_score: result?.quality_score ?? 0,
+    quality_checks: result?.quality_checks ?? [],
+  };
+  const metricsPayload = {
+    rows: result?.curated_preview ?? [],
+    records: result?.records ?? 0,
+    quality_score: result?.quality_score ?? 0,
+    curated_fields: result?.curated_fields ?? 0,
+  };
 
   return (
     <section className="prepareDeepBlock">
       <div className="prepareDeepHead">
         <div>
           <p>Prepare stage</p>
-          <h3>Imputatsiya / Edit va version tanlash jarayoni</h3>
+          <h3>Imputatsiya / Edit va fayl versiyasini tanlash</h3>
         </div>
         <span className={["prepareGateBadge", awaitingVersionSelection ? "paused" : imputation ? "ready" : "waiting"].join(" ")}>
           {awaitingVersionSelection ? "STOPPED FOR VERSION" : imputation ? "READY FOR QUALITY" : "WAITING INPUT"}
@@ -968,47 +1551,149 @@ function PrepareImputationDeepBlock({
         <article className="prepareMetricsPanel">
           <strong>Realtime natija</strong>
           <div className="prepareMetricGrid">
-            <ReportValue label="Rows" value={String(metrics.output_rows ?? preparedRows.length)} />
+            <ReportValue label="Records" value={String(metrics.output_rows ?? preparedRows.length)} />
             <ReportValue label="Imputed" value={String(metrics.imputed_values ?? 0)} />
             <ReportValue label="Manual edit" value={String(metrics.manual_corrections_applied ?? 0)} />
             <ReportValue label="Rejected" value={String(metrics.manual_corrections_rejected ?? 0)} />
           </div>
-          <code>{imputation?.output_ref ?? "prepared.json va version ID lar pipeline ishga tushganda chiqadi"}</code>
+          <code>{imputation?.output_ref ?? "prepared.json va file version pipeline ishga tushganda chiqadi"}</code>
         </article>
       </div>
 
       <div className="prepareVersionSelect">
         <div className="prepareVersionTitle">
-          <strong>Tabledan version tanlash</strong>
-          <span>{selectedVersionId ? `Tanlangan: ${selectedVersionId}` : "Prepared version ID tanlanmagan"}</span>
+          <strong>Bitta fayl versiyasini tanlash</strong>
+          <span>{selectedVersionId ? "Tanlangan: " + selectedVersionId : "Qayta ishlangan fayl versiyasi tanlanmagan"}</span>
         </div>
-        <div className="prepareVersionRows">
-          {versionRows.length ? versionRows.map((item) => {
-            const selected = selectedVersionId === item.prepared;
-            return (
-              <button key={item.recordId} type="button" className={["prepareVersionRow", selected ? "selected" : ""].join(" ")} onClick={() => onSelectVersion(item.prepared)}>
-                <span><b>record_id</b><code>{item.recordId}</code></span>
-                <span><b>Raw</b><code>{item.raw}</code></span>
-                <span><b>Prepared</b><code>{item.prepared}</code></span>
-                <span><b>Quality</b><code>{item.quality}</code></span>
-                <span><b>DWH</b><code>{item.dwh}</code></span>
-                <em>{selected ? "SELECTED" : "SELECT"}</em>
-              </button>
-            );
-          }) : (
-            <div className="prepareVersionEmpty">Run scenario qiling. Prepared preview chiqqandan keyin har bir recordning version ID lari shu tableda tanlanadi.</div>
-          )}
-        </div>
+        {savedVersionId ? (
+          <div className="prepareVersionSaved"><Icon name="check" /><span><b>Yangi manual fayl versiyasi saqlandi</b><code>{savedVersionId}</code></span></div>
+        ) : null}
+
+        {datasetVersion && preparedRows.length ? (
+          <div className={["prepareVersionRow", selectedVersionId === datasetVersion.prepared ? "selected" : ""].join(" ")}>
+            <span className="prepareRecordIdentity">
+              <b>record_id</b>
+              <code title={datasetVersion.fileId}>{datasetVersion.fileId}</code>
+              <small title={datasetVersion.fileName}>{datasetVersion.fileName}</small>
+              <em>{preparedRows.length} ta record</em>
+            </span>
+
+            {[
+              {
+                key: "raw",
+                label: "Birlamchi ma'lumot",
+                id: datasetVersion.raw,
+                payload: result?.raw_preview ?? [],
+                editRows: result?.raw_preview ?? [],
+              },
+              {
+                key: "prepared",
+                label: "Qayta ishlangan",
+                id: datasetVersion.prepared,
+                payload: preparedRows.map(withoutInternalVersionFields),
+                editRows: preparedRows,
+              },
+              {
+                key: "integration",
+                label: "Integratsiya",
+                id: datasetVersion.integration,
+                payload: integrationPayload,
+                editRows: preparedRows,
+              },
+              {
+                key: "metrics",
+                label: "Ko'rsatkichlar",
+                id: datasetVersion.metrics,
+                payload: metricsPayload,
+                editRows: result?.curated_preview ?? [],
+              },
+            ].map((version) => (
+              <div className="prepareVersionCell" key={version.key}>
+                <b>{version.label}</b>
+                <code title={version.id}>{version.id}</code>
+                <small>{version.editRows.length} ta record</small>
+                <div className="prepareVersionCellActions">
+                  <button
+                    type="button"
+                    title={version.label + " faylini edit qilish"}
+                    aria-label={version.label + " faylini edit qilish"}
+                    onClick={() => beginEdit(version.label, version.id, version.editRows)}
+                  >
+                    <Icon name="code" /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    title={version.label + " faylini yuklab olish"}
+                    aria-label={version.label + " faylini yuklab olish"}
+                    onClick={() => downloadVersionJson(
+                      version.id,
+                      versionPayload(version.label, version.id, version.payload),
+                    )}
+                  >
+                    <Icon name="download" /> Yuklash
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              className="prepareVersionChoose"
+              onClick={() => onSelectVersion(datasetVersion.prepared)}
+            >
+              <Icon name={selectedVersionId === datasetVersion.prepared ? "check" : "layers"} />
+              {selectedVersionId === datasetVersion.prepared ? "TANLANGAN" : "TANLASH"}
+            </button>
+          </div>
+        ) : (
+          <div className="prepareVersionEmpty">Run scenario qiling. Barcha recordlar bitta fayl qatori sifatida shu yerda ko'rsatiladi.</div>
+        )}
+
+        {editingVersion ? (
+          <section className="prepareVersionEditor">
+            <header>
+              <span><Icon name="code" /></span>
+              <div>
+                <p>{editingVersion.sourceLabel} faylidan copy-on-write</p>
+                <h4>Barcha recordlar uchun yangi Prepared version</h4>
+                <code>{editingVersion.sourceVersionId}</code>
+              </div>
+              <button type="button" className="iconButton" onClick={() => setEditingVersion(null)} title="Editni yopish" aria-label="Editni yopish"><Icon name="close" /></button>
+            </header>
+            <div className="prepareDatasetEditorMeta">
+              <span><b>Fayl</b>{datasetVersion?.fileName}</span>
+              <span><b>Recordlar</b>{editingVersion.rows.length}</span>
+              <span><b>Format</b>JSON array</span>
+            </div>
+            <textarea
+              className="prepareDatasetJsonEditor"
+              value={draftJson}
+              onChange={(event) => setDraftJson(event.target.value)}
+              spellCheck={false}
+              aria-label="Butun fayl JSON editori"
+            />
+            {editorError ? <div className="prepareEditorError"><Icon name="alert" />{editorError}</div> : null}
+            <footer>
+              <span>Asl fayl o'zgarmaydi. Saqlash barcha recordlar uchun yangi <code>prep:*:manual-*</code> versiya yaratadi.</span>
+              <div>
+                <button type="button" className="prepareEditorCancel" onClick={() => setEditingVersion(null)}>Bekor qilish</button>
+                <button type="button" className="prepareEditorSave" onClick={saveEdit}><Icon name="check" /> Fayl versiyasini saqlash</button>
+              </div>
+            </footer>
+          </section>
+        ) : null}
+
         <div className="prepareContinueBar">
-          <span>{awaitingVersionSelection ? "Flow shu yerda to'xtagan. Version tanlang va davom ettiring." : "Imputatsiya stepga kelganda bu gate avtomatik pause qiladi."}</span>
+          <span>{awaitingVersionSelection ? "Flow shu yerda to'xtagan. Fayl versiyasini tanlang va davom ettiring." : "Imputatsiya stepga kelganda bu gate avtomatik pause qiladi."}</span>
           <button type="button" onClick={onContinue} disabled={!awaitingVersionSelection || !selectedVersionId}>
-            <Icon name="play" /> Tanlangan version bilan davom etish
+            <Icon name="play" /> Tanlangan fayl versiyasi bilan davom etish
           </button>
         </div>
       </div>
     </section>
   );
 }
+
 function PreparationWorkbench({
   rawRows,
   preparedRows,
@@ -1404,6 +2089,10 @@ function ScenarioCanvas({
   apiRunning,
   totalRecords,
   runStatus,
+  sources,
+  selectedSourceId,
+  sourceSelectionDisabled,
+  onSourceChange,
   onSelect,
 }: {
   stageResults: Map<string, StageResult>;
@@ -1413,6 +2102,10 @@ function ScenarioCanvas({
   apiRunning: boolean;
   totalRecords: number;
   runStatus?: PipelineResult["status"];
+  sources: SourcesResponse;
+  selectedSourceId: string;
+  sourceSelectionDisabled: boolean;
+  onSourceChange: (sourceId: string) => void;
   onSelect: (stage: StageMeta) => void;
 }) {
   const nodeMap = new Map(scenarioNodes.map((node) => [node.id, node]));
@@ -1436,9 +2129,21 @@ function ScenarioCanvas({
   return (
     <div className="scenarioViewport">
       <div className="scenarioMap" style={{ width: SCENARIO_WIDTH, height: SCENARIO_HEIGHT }}>
+        <span className="canvasGroupLabel sourcesLabel">Ma'lumot manbalari</span>
         <span className="canvasGroupLabel ingestionLabel">Ingestion va data lake</span>
-        <span className="canvasGroupLabel orchestrationLabel">Orchestration</span>
-        <span className="canvasGroupLabel deliveryLabel">Warehouse va delivery</span>
+        <span className="canvasGroupLabel deliveryLabel">Query, BI va audit</span>
+        <section className="warehouseZoneHeader" aria-label="Data Warehouse qatlami">
+          <span>Analitik qatlam</span>
+          <strong>DATA WAREHOUSE</strong>
+          <p>Model yaratish, saqlash, SQL query, BI dataset va audit</p>
+          <div>
+            <b>Warehouse Modeling</b>
+            <b>ClickHouse DWH</b>
+            <b>Trino Query</b>
+            <b>Apache Superset</b>
+            <b>PostgreSQL Audit</b>
+          </div>
+        </section>
 
         <div className={["canvasRunBadge", apiRunning || playbackRunning ? "running" : stageResults.size ? "complete" : "idle"].join(" ")}>
           <i />
@@ -1518,6 +2223,54 @@ function ScenarioCanvas({
             top: node.y,
             "--node-color": stage.color,
           } as CSSProperties & { "--node-color": string };
+
+          if (stage.id === "source") {
+            return (
+              <section
+                key={stage.id}
+                className={["sourceStackNode", visualState, isVisited ? "visited" : ""].filter(Boolean).join(" ")}
+                style={style}
+              >
+                <button type="button" className="sourceStageHeader" onClick={() => onSelect(stage)}>
+                  <span className="nodeOrder">{playbackOrder || index + 1}</span>
+                  <span className="sourceStageHeaderIcon"><Icon name="layers" /></span>
+                  <span>
+                    <strong>Source tanlash</strong>
+                    <small>1 ta source aktiv bo'ladi</small>
+                  </span>
+                  <em>{stateLabel}</em>
+                </button>
+                <div className="sourceStageList">
+                  {PRIMARY_SOURCE_OPTIONS.map((option) => {
+                    const definition = sources[option.id];
+                    const selected = selectedSourceId === option.id;
+                    return (
+                      <button
+                        type="button"
+                        key={option.id}
+                        className={["sourceStageChoice", selected ? "selected" : ""].join(" ")}
+                        onClick={() => onSourceChange(option.id)}
+                        disabled={sourceSelectionDisabled}
+                        aria-pressed={selected}
+                      >
+                        <span><Icon name={option.icon} /></span>
+                        <span>
+                          <strong>{definition?.title ?? option.label}</strong>
+                          <small>{definition?.collection ?? option.detail}</small>
+                        </span>
+                        <i>{selected ? "ACTIVE" : "SELECT"}</i>
+                      </button>
+                    );
+                  })}
+                </div>
+                <footer>
+                  <span>Selected source</span>
+                  <strong>{sources[selectedSourceId]?.title ?? selectedSourceId}</strong>
+                </footer>
+                {isPlaying && <span className="sourceStageProgress" />}
+              </section>
+            );
+          }
 
           return (
             <button
@@ -1600,9 +2353,10 @@ function StageSidePanel({
       </div>
       <div className="stageSidebarScroll">
         <p className="stageSidebarDetail">{stage.detail}</p>
-        <StageRunState stage={stage} result={result} />
-        <StageProcessSidebar stage={stage} result={result} active={active} />
         <StageDescriptionBlock stage={stage} />
+        <StageRunState stage={stage} result={result} />
+        <StageResultVisualization stage={stage} result={result} fallback={staticStageDetails[stage.id]} />
+        <StageProcessSidebar stage={stage} result={result} active={active} />
         <PreparationLifecycle
           stage={stage}
           result={result}
@@ -2056,6 +2810,109 @@ function DeliveryResultPanel({
     </section>
   );
 }
+function StageResultVisualization({
+  stage,
+  result,
+  fallback,
+}: {
+  stage: StageMeta;
+  result?: StageResult;
+  fallback?: StaticStageDetail;
+}) {
+  const output = result?.output_preview ?? fallback?.output_preview;
+  const metrics = { ...(fallback?.metrics ?? {}), ...(result?.metrics ?? {}) };
+  const rows = extractStageVisualRows(output);
+  const columns = rows.length
+    ? Object.keys(rows[0]).filter((key) => rows.some((row) => row[key] !== undefined)).slice(0, 6)
+    : [];
+  const numericMetrics = Object.entries(metrics)
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number")
+    .slice(0, 5);
+  const maxMetric = Math.max(1, ...numericMetrics.map(([, value]) => Math.abs(value)));
+  const recordCount = result ? getStageRecordCount(result, rows.length) : rows.length;
+  const outputRef = result?.output_ref ?? fallback?.output_ref;
+
+  return (
+    <section className={["stageResultVisualization", result ? result.status : "waiting"].join(" ")}>
+      <div className="stageResultHead">
+        <div>
+          <Icon name="chart" />
+          <span>
+            <small>REAL DATA VISUAL</small>
+            <strong>{stage.label} natijasi</strong>
+          </span>
+        </div>
+        <em>{result ? result.status === "done" ? "REAL EXECUTED" : result.status.toUpperCase() : "RUN KUTILMOQDA"}</em>
+      </div>
+
+      <div className="stageResultKpis">
+        <ReportValue label="Records" value={String(recordCount)} />
+        <ReportValue label="Duration" value={result ? formatDuration(result.duration_ms) : "-"} />
+        <ReportValue label="Payload" value={result ? formatBytes(result.data_size_bytes) : "-"} />
+        <ReportValue label="Format" value={result?.data_format ?? "-"} />
+      </div>
+
+      {rows.length ? (
+        <div className="stageResultTableWrap">
+          <div className="stageResultTable" style={{ "--result-columns": columns.length } as CSSProperties}>
+            <div className="stageResultTableHead">
+              {columns.map((column) => <span key={column}>{column}</span>)}
+            </div>
+            {rows.slice(0, 5).map((row, rowIndex) => (
+              <div className="stageResultTableRow" key={String(row.id ?? row.dw_id ?? rowIndex)}>
+                {columns.map((column) => <span key={column} title={formatCell(row[column])}>{formatCell(row[column]) || "NULL"}</span>)}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="stageResultEmpty">
+          <Icon name="server" />
+          <span>{result ? "Output table ko'rinishiga aylantiriladigan row topilmadi." : "Scenario ishlaganda real output shu yerda table va KPI sifatida chiqadi."}</span>
+        </div>
+      )}
+
+      {numericMetrics.length > 0 && (
+        <div className="stageMetricBars">
+          {numericMetrics.map(([label, value]) => (
+            <div key={label}>
+              <span>{label}</span>
+              <i><b style={{ width: Math.max(5, Math.round(Math.abs(value) / maxMetric * 100)) + "%" }} /></i>
+              <strong>{value.toLocaleString("en-US")}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {outputRef && (
+        outputRef.startsWith("http")
+          ? <a className="stageResultLink" href={outputRef} target="_blank" rel="noreferrer"><Icon name="globe" /> Real natijani ochish</a>
+          : <code className="stageResultRef">{outputRef}</code>
+      )}
+    </section>
+  );
+}
+
+function extractStageVisualRows(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object").slice(0, 5);
+  }
+  if (!value || typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["rows", "sample", "records", "curated", "raw", "transform"]) {
+    const candidate = record[key];
+    if (Array.isArray(candidate)) {
+      const rows = candidate.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object");
+      if (rows.length) return rows.slice(0, 5);
+    }
+  }
+
+  const scalarRecord = Object.fromEntries(
+    Object.entries(record).filter(([, item]) => item === null || ["string", "number", "boolean"].includes(typeof item)),
+  );
+  return Object.keys(scalarRecord).length ? [scalarRecord] : [];
+}
 function StageInspector({ stage, result, fallback }: { stage: StageMeta; result?: StageResult; fallback?: StaticStageDetail }) {
   const metrics = { ...(fallback?.metrics ?? {}), ...(result?.metrics ?? {}) };
   const artifacts = { ...(fallback?.artifacts ?? {}), ...(result?.artifacts ?? {}) };
@@ -2075,9 +2932,9 @@ function StageInspector({ stage, result, fallback }: { stage: StageMeta; result?
         />
         <DataDiffView input={inputPreview} output={outputPreview} />
         <DetailCard title="Metrics" icon="chart" data={metrics} />
-        <CodePanel stage={stage} />
-        <DetailCard title="Artifacts / Code" icon="code" data={artifacts} wide />
+        <DetailCard title="Texnik artifacts" icon="server" data={artifacts} wide />
         <DetailCard title="Raw stage JSON" icon="server" data={result ?? fallback ?? { status: "idle" }} wide />
+        <CodePanel stage={stage} />
       </div>
     </div>
   );
